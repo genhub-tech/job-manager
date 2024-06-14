@@ -1,0 +1,853 @@
+[00:00:00.923] (1f18a8c00) INFO   Session id: c800b758f16efc30de830766c8efc7a38e2cbe91365d9675c7113fdcfa320728
+[00:00:00.934] (1f18a8c00) INFO   Sending message: keepalive
+[00:00:01.160] (1f18a8c00) INFO   Received message: keepalive
+[00:00:10.709] (1f18a8c00) INFO   Received message: {"data": {"action": "command", "command": "python3 /Volumes/macOS-extravol/majinbo/job_manager.py add 'echo Hello, World!'"}, "request_id": "3b344ff1-d04d-4037-b2ff-8b0abcebdf13"}
+[00:00:10.808] (1f18a8c00) INFO   Sending message: {"data":{"return_code":0,"stdout":"Job 2 added to the queue\n","stderr":""},"error":false,"request_id":"3b344ff1-d04d-4037-b2ff-8b0abcebdf13"}
+[00:00:14.553] (1f18a8c00) INFO   Received message: {"data": {"action": "command", "command": "python3 /Volumes/macOS-extravol/majinbo/job_manager.py status 2"}, "request_id": "d459a857-74af-437e-8a23-3d230e2f75e9"}
+[00:00:14.590] (1f18a8c00) INFO   Sending message: {"data":{"return_code":0,"stdout":"Job 2 status: completed\n","stderr":""},"error":false,"request_id":"d459a857-74af-437e-8a23-3d230e2f75e9"}
+[00:00:20.028] (1f18a8c00) INFO   Received message: {"data": {"action": "command", "command": "python3 /Volumes/macOS-extravol/majinbo/job_manager.py run"}, "request_id": "b82b52c1-bd15-4e68-9120-9c95ed875dcf"}
+[00:00:20.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:00:21.163] (1f18a8c00) INFO   Received message: keepalive
+[00:00:40.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:00:41.163] (1f18a8c00) INFO   Received message: keepalive
+[00:01:00.936] (1f18a8c00) INFO   Sending message: keepalive
+[00:01:01.164] (1f18a8c00) INFO   Received message: keepalive
+[00:01:20.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:01:21.164] (1f18a8c00) INFO   Received message: keepalive
+[00:01:29.777] (1f18a8c00) INFO   Received message: {"data": {"action": "write", "content": "import os\nimport csv\nimport subprocess\nfrom time import sleep\n\nQUEUE_FILE = '/Volumes/macOS-extravol/majinbo/job_queue.txt'\nCONTEXT_FILE = '/Volumes/macOS-extravol/majinbo/context.txt'\n\n# Function to add a job to the queue\ndef add_job(command):\n    job_id = get_next_job_id()\n    with open(QUEUE_FILE, 'a') as f:\n        writer = csv.writer(f)\n        writer.writerow([job_id, command, 'queued'])\n    update_context(f'Job {job_id} added to the queue with command: {command}')\n    return job_id\n\n# Function to get the next job ID\ndef get_next_job_id():\n    if not os.path.exists(QUEUE_FILE):\n        return 1\n    with open(QUEUE_FILE, 'r') as f:\n        reader = csv.reader(f)\n        rows = list(reader)\n        if len(rows) <= 1:\n            return 1\n        last_id = int(rows[-1][0])\n        return last_id + 1\n\n# Function to check the status of a job\ndef check_job_status(job_id):\n    if not os.path.exists(QUEUE_FILE):\n        return 'Job not found'\n    with open(QUEUE_FILE, 'r') as f:\n        reader = csv.reader(f)\n        for row in reader:\n            if row[0] == str(job_id):\n                return row[2]\n    return 'Job not found'\n\n# Function to execute jobs in the queue\ndef execute_jobs():\n    while True:\n        with open(QUEUE_FILE, 'r') as f:\n            reader = csv.reader(f)\n            rows = list(reader)\n        if len(rows) <= 1:\n            sleep(5)\n            continue\n        for row in rows[1:]:\n            job_id, command, status = row\n            if status == 'queued':\n                if is_job_running(command):\n                    continue\n                update_job_status(job_id, 'running')\n                subprocess.Popen(f'screen -dmS job_{job_id} bash -c \"{command}\" && echo {job_id} completed', shell=True)\n                sleep(5)\n                update_job_status(job_id, 'completed')\n                update_context(f'Job {job_id} with command \"{command}\" has been completed')\n        sleep(5)\n\n# Function to check if a job with the same command is already running\ndef is_job_running(command):\n    result = subprocess.run(['pgrep', '-f', command], stdout=subprocess.PIPE)\n    return result.returncode == 0\n\n# Function to update the status of a job\ndef update_job_status(job_id, status):\n    with open(QUEUE_FILE, 'r') as f:\n        reader = csv.reader(f)\n        rows = list(reader)\n    with open(QUEUE_FILE, 'w') as f:\n        writer = csv.writer(f)\n        for row in rows:\n            if row[0] == str(job_id):\n                row[2] = status\n            writer.writerow(row)\n\n# Function to update the context file\ndef update_context(message):\n    with open(CONTEXT_FILE, 'a') as f:\n        f.write(f'CONTEXT: {message}\\n')\n\nif __name__ == '__main__':\n    import sys\n    if len(sys.argv) < 2:\n        print('Usage: python job_manager.py <add|status|run> [args...]')\n        sys.exit(1)\n    command = sys.argv[1]\n    if command == 'add' and len(sys.argv) == 3:\n        job_command = sys.argv[2]\n        job_id = add_job(job_command)\n        print(f'Job {job_id} added to the queue')\n    elif command == 'status' and len(sys.argv) == 3:\n        job_id = int(sys.argv[2])\n        status = check_job_status(job_id)\n        print(f'Job {job_id} status: {status}')\n    elif command == 'run':\n        execute_jobs()\n    else:\n        print('Invalid command or arguments')\n        sys.exit(1)\n", "path": "/Volumes/macOS-extravol/majinbo/job_manager.py"}, "request_id": "e50f91a8-7b83-47da-a6ec-7cc59ee4abf0"}
+[00:01:29.783] (1f18a8c00) INFO   Sending message: {"data":{"size":3335},"error":false,"request_id":"e50f91a8-7b83-47da-a6ec-7cc59ee4abf0"}
+[00:01:35.483] (1f18a8c00) INFO   Received message: {"data": {"action": "command", "command": "python3 /Volumes/macOS-extravol/majinbo/job_manager.py add 'echo Hello, Adjusted World!'"}, "request_id": "92553957-2488-409f-af86-99478372ab3b"}
+[00:01:35.887] (1f18a8c00) INFO   Sending message: {"data":{"return_code":0,"stdout":"Job 3 added to the queue\n","stderr":""},"error":false,"request_id":"92553957-2488-409f-af86-99478372ab3b"}
+[00:01:40.937] (1f18a8c00) INFO   Sending message: keepalive
+[00:01:41.164] (1f18a8c00) INFO   Received message: keepalive
+[00:01:41.761] (1f18a8c00) INFO   Received message: {"data": {"action": "command", "command": "python3 /Volumes/macOS-extravol/majinbo/job_manager.py status 3"}, "request_id": "5b62d406-2e24-4776-b802-7b9825f24605"}
+[00:01:41.805] (1f18a8c00) INFO   Sending message: {"data":{"return_code":0,"stdout":"Job 3 status: completed\n","stderr":""},"error":false,"request_id":"5b62d406-2e24-4776-b802-7b9825f24605"}
+[00:01:45.484] (1f18a8c00) INFO   Received message: {"data": {"action": "command", "command": "python3 /Volumes/macOS-extravol/majinbo/job_manager.py run"}, "request_id": "ff4ca6c3-6137-4eb6-831a-11d28cd016ab"}
+[00:02:00.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:02:01.176] (1f18a8c00) INFO   Received message: keepalive
+[00:02:20.974] (1f18a8c00) INFO   Sending message: keepalive
+[00:02:21.212] (1f18a8c00) INFO   Received message: keepalive
+[00:02:40.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:02:41.165] (1f18a8c00) INFO   Received message: keepalive
+[00:02:59.332] (1f18a8c00) INFO   Received message: {"data": {"action": "write", "content": "import os\nimport csv\nimport subprocess\nfrom time import sleep\n\nQUEUE_FILE = '/Volumes/macOS-extravol/majinbo/job_queue.txt'\nCONTEXT_FILE = '/Volumes/macOS-extravol/majinbo/context.txt'\n\n# Function to add a job to the queue\ndef add_job(command):\n    job_id = get_next_job_id()\n    with open(QUEUE_FILE, 'a') as f:\n        writer = csv.writer(f)\n        writer.writerow([job_id, command, 'queued'])\n    update_context(f'Job {job_id} added to the queue with command: {command}')\n    return job_id\n\n# Function to get the next job ID\ndef get_next_job_id():\n    if not os.path.exists(QUEUE_FILE):\n        return 1\n    with open(QUEUE_FILE, 'r') as f:\n        reader = csv.reader(f)\n        rows = list(reader)\n        if len(rows) <= 1:\n            return 1\n        last_id = int(rows[-1][0])\n        return last_id + 1\n\n# Function to check the status of a job\ndef check_job_status(job_id):\n    if not os.path.exists(QUEUE_FILE):\n        return 'Job not found'\n    with open(QUEUE_FILE, 'r') as f:\n        reader = csv.reader(f)\n        for row in reader:\n            if row[0] == str(job_id):\n                return row[2]\n    return 'Job not found'\n\n# Function to execute jobs in the queue\ndef execute_jobs():\n    while True:\n        with open(QUEUE_FILE, 'r') as f:\n            reader = csv.reader(f)\n            rows = list(reader)\n        if len(rows) <= 1:\n            sleep(2)\n            continue\n        for row in rows[1:]:\n            job_id, command, status = row\n            if status == 'queued':\n                if is_job_running(command):\n                    continue\n                update_job_status(job_id, 'running')\n                subprocess.Popen(f'screen -dmS job_{job_id} bash -c \"{command}\" && echo {job_id} completed', shell=True)\n                sleep(2)\n                update_job_status(job_id, 'completed')\n                update_context(f'Job {job_id} with command \"{command}\" has been completed')\n        sleep(2)\n\n# Function to check if a job with the same command is already running\ndef is_job_running(command):\n    result = subprocess.run(['pgrep', '-f', command], stdout=subprocess.PIPE)\n    return result.returncode == 0\n\n# Function to update the status of a job\ndef update_job_status(job_id, status):\n    with open(QUEUE_FILE, 'r') as f:\n        reader = csv.reader(f)\n        rows = list(reader)\n    with open(QUEUE_FILE, 'w') as f:\n        writer = csv.writer(f)\n        for row in rows:\n            if row[0] == str(job_id):\n                row[2] = status\n            writer.writerow(row)\n\n# Function to update the context file\ndef update_context(message):\n    with open(CONTEXT_FILE, 'a') as f:\n        f.write(f'CONTEXT: {message}\\n')\n\nif __name__ == '__main__':\n    import sys\n    if len(sys.argv) < 2:\n        print('Usage: python job_manager.py <add|status|run> [args...]')\n        sys.exit(1)\n    command = sys.argv[1]\n    if command == 'add' and len(sys.argv) == 3:\n        job_command = sys.argv[2]\n        job_id = add_job(job_command)\n        print(f'Job {job_id} added to the queue')\n    elif command == 'status' and len(sys.argv) == 3:\n        job_id = int(sys.argv[2])\n        status = check_job_status(job_id)\n        print(f'Job {job_id} status: {status}')\n    elif command == 'run':\n        execute_jobs()\n    else:\n        print('Invalid command or arguments')\n        sys.exit(1)\n", "path": "/Volumes/macOS-extravol/majinbo/job_manager.py"}, "request_id": "ec8777c4-71f3-4e4d-93b2-a326f84afd88"}
+[00:02:59.341] (1f18a8c00) INFO   Sending message: {"data":{"size":3335},"error":false,"request_id":"ec8777c4-71f3-4e4d-93b2-a326f84afd88"}
+[00:03:00.936] (1f18a8c00) INFO   Sending message: keepalive
+[00:03:01.239] (1f18a8c00) INFO   Received message: keepalive
+[00:03:05.240] (1f18a8c00) INFO   Received message: {"data": {"action": "command", "command": "python3 /Volumes/macOS-extravol/majinbo/job_manager.py add 'echo Hello, Faster World!'"}, "request_id": "6ea72ea7-a873-45e0-a420-e7dd7db1407d"}
+[00:03:05.299] (1f18a8c00) INFO   Sending message: {"data":{"return_code":0,"stdout":"Job 4 added to the queue\n","stderr":""},"error":false,"request_id":"6ea72ea7-a873-45e0-a420-e7dd7db1407d"}
+[00:03:09.824] (1f18a8c00) INFO   Received message: {"data": {"action": "command", "command": "python3 /Volumes/macOS-extravol/majinbo/job_manager.py status 4"}, "request_id": "118b672b-82dc-411e-8206-21180e0e97d2"}
+[00:03:09.866] (1f18a8c00) INFO   Sending message: {"data":{"return_code":0,"stdout":"Job 4 status: completed\n","stderr":""},"error":false,"request_id":"118b672b-82dc-411e-8206-21180e0e97d2"}
+[00:03:20.938] (1f18a8c00) INFO   Sending message: keepalive
+[00:03:21.166] (1f18a8c00) INFO   Received message: keepalive
+[00:03:40.954] (1f18a8c00) INFO   Sending message: keepalive
+[00:03:41.187] (1f18a8c00) INFO   Received message: keepalive
+[00:04:00.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:04:01.165] (1f18a8c00) INFO   Received message: keepalive
+[00:04:20.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:04:21.164] (1f18a8c00) INFO   Received message: keepalive
+[00:04:40.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:04:41.165] (1f18a8c00) INFO   Received message: keepalive
+[00:05:00.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:05:01.164] (1f18a8c00) INFO   Received message: keepalive
+[00:05:20.940] (1f18a8c00) INFO   Sending message: keepalive
+[00:05:21.169] (1f18a8c00) INFO   Received message: keepalive
+[00:05:40.934] (1f18a8c00) INFO   Sending message: keepalive
+[00:05:41.163] (1f18a8c00) INFO   Received message: keepalive
+[00:06:00.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:06:01.165] (1f18a8c00) INFO   Received message: keepalive
+[00:06:20.934] (1f18a8c00) INFO   Sending message: keepalive
+[00:06:21.164] (1f18a8c00) INFO   Received message: keepalive
+[00:06:40.934] (1f18a8c00) INFO   Sending message: keepalive
+[00:06:41.164] (1f18a8c00) INFO   Received message: keepalive
+[00:07:00.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:07:01.176] (1f18a8c00) INFO   Received message: keepalive
+[00:07:20.936] (1f18a8c00) INFO   Sending message: keepalive
+[00:07:21.166] (1f18a8c00) INFO   Received message: keepalive
+[00:07:40.934] (1f18a8c00) INFO   Sending message: keepalive
+[00:07:41.163] (1f18a8c00) INFO   Received message: keepalive
+[00:08:00.934] (1f18a8c00) INFO   Sending message: keepalive
+[00:08:01.169] (1f18a8c00) INFO   Received message: keepalive
+[00:08:20.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:08:21.165] (1f18a8c00) INFO   Received message: keepalive
+[00:08:40.949] (1f18a8c00) INFO   Sending message: keepalive
+[00:08:41.241] (1f18a8c00) INFO   Received message: keepalive
+[00:09:00.937] (1f18a8c00) INFO   Sending message: keepalive
+[00:09:01.165] (1f18a8c00) INFO   Received message: keepalive
+[00:09:20.945] (1f18a8c00) INFO   Sending message: keepalive
+[00:09:21.173] (1f18a8c00) INFO   Received message: keepalive
+[00:09:40.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:09:41.164] (1f18a8c00) INFO   Received message: keepalive
+[00:10:00.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:10:01.164] (1f18a8c00) INFO   Received message: keepalive
+[00:10:20.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:10:21.166] (1f18a8c00) INFO   Received message: keepalive
+[00:10:40.942] (1f18a8c00) INFO   Sending message: keepalive
+[00:10:41.175] (1f18a8c00) INFO   Received message: keepalive
+[00:11:00.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:11:01.174] (1f18a8c00) INFO   Received message: keepalive
+[00:11:20.936] (1f18a8c00) INFO   Sending message: keepalive
+[00:11:21.166] (1f18a8c00) INFO   Received message: keepalive
+[00:11:40.938] (1f18a8c00) INFO   Sending message: keepalive
+[00:11:41.167] (1f18a8c00) INFO   Received message: keepalive
+[00:12:00.937] (1f18a8c00) INFO   Sending message: keepalive
+[00:12:01.166] (1f18a8c00) INFO   Received message: keepalive
+[00:12:20.934] (1f18a8c00) INFO   Sending message: keepalive
+[00:12:21.163] (1f18a8c00) INFO   Received message: keepalive
+[00:12:40.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:12:41.164] (1f18a8c00) INFO   Received message: keepalive
+[00:13:00.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:13:01.163] (1f18a8c00) INFO   Received message: keepalive
+[00:13:20.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:13:21.164] (1f18a8c00) INFO   Received message: keepalive
+[00:13:40.945] (1f18a8c00) INFO   Sending message: keepalive
+[00:13:41.174] (1f18a8c00) INFO   Received message: keepalive
+[00:14:00.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:14:01.166] (1f18a8c00) INFO   Received message: keepalive
+[00:14:20.949] (1f18a8c00) INFO   Sending message: keepalive
+[00:14:21.178] (1f18a8c00) INFO   Received message: keepalive
+[00:14:40.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:14:41.165] (1f18a8c00) INFO   Received message: keepalive
+[00:15:00.937] (1f18a8c00) INFO   Sending message: keepalive
+[00:15:01.168] (1f18a8c00) INFO   Received message: keepalive
+[00:15:20.950] (1f18a8c00) INFO   Sending message: keepalive
+[00:15:21.180] (1f18a8c00) INFO   Received message: keepalive
+[00:15:40.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:15:41.165] (1f18a8c00) INFO   Received message: keepalive
+[00:16:00.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:16:01.164] (1f18a8c00) INFO   Received message: keepalive
+[00:16:20.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:16:21.163] (1f18a8c00) INFO   Received message: keepalive
+[00:16:40.937] (1f18a8c00) INFO   Sending message: keepalive
+[00:16:41.167] (1f18a8c00) INFO   Received message: keepalive
+[00:17:00.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:17:01.162] (1f18a8c00) INFO   Received message: keepalive
+[00:17:20.934] (1f18a8c00) INFO   Sending message: keepalive
+[00:17:21.163] (1f18a8c00) INFO   Received message: keepalive
+[00:17:40.936] (1f18a8c00) INFO   Sending message: keepalive
+[00:17:41.165] (1f18a8c00) INFO   Received message: keepalive
+[00:18:00.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:18:01.167] (1f18a8c00) INFO   Received message: keepalive
+[00:18:20.936] (1f18a8c00) INFO   Sending message: keepalive
+[00:18:21.164] (1f18a8c00) INFO   Received message: keepalive
+[00:18:40.936] (1f18a8c00) INFO   Sending message: keepalive
+[00:18:41.254] (1f18a8c00) INFO   Received message: keepalive
+[00:19:00.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:19:01.163] (1f18a8c00) INFO   Received message: keepalive
+[00:19:20.934] (1f18a8c00) INFO   Sending message: keepalive
+[00:19:21.165] (1f18a8c00) INFO   Received message: keepalive
+[00:19:40.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:19:41.164] (1f18a8c00) INFO   Received message: keepalive
+[00:20:00.938] (1f18a8c00) INFO   Sending message: keepalive
+[00:20:01.167] (1f18a8c00) INFO   Received message: keepalive
+[00:20:20.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:20:21.164] (1f18a8c00) INFO   Received message: keepalive
+[00:20:40.937] (1f18a8c00) INFO   Sending message: keepalive
+[00:20:41.173] (1f18a8c00) INFO   Received message: keepalive
+[00:21:00.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:21:01.166] (1f18a8c00) INFO   Received message: keepalive
+[00:21:20.945] (1f18a8c00) INFO   Sending message: keepalive
+[00:21:21.179] (1f18a8c00) INFO   Received message: keepalive
+[00:21:40.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:21:41.164] (1f18a8c00) INFO   Received message: keepalive
+[00:22:00.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:22:01.162] (1f18a8c00) INFO   Received message: keepalive
+[00:22:20.936] (1f18a8c00) INFO   Sending message: keepalive
+[00:22:21.163] (1f18a8c00) INFO   Received message: keepalive
+[00:22:40.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:22:41.179] (1f18a8c00) INFO   Received message: keepalive
+[00:23:00.934] (1f18a8c00) INFO   Sending message: keepalive
+[00:23:01.163] (1f18a8c00) INFO   Received message: keepalive
+[00:23:20.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:23:21.164] (1f18a8c00) INFO   Received message: keepalive
+[00:23:40.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:23:41.164] (1f18a8c00) INFO   Received message: keepalive
+[00:24:00.938] (1f18a8c00) INFO   Sending message: keepalive
+[00:24:01.168] (1f18a8c00) INFO   Received message: keepalive
+[00:24:20.936] (1f18a8c00) INFO   Sending message: keepalive
+[00:24:21.165] (1f18a8c00) INFO   Received message: keepalive
+[00:24:40.937] (1f18a8c00) INFO   Sending message: keepalive
+[00:24:41.165] (1f18a8c00) INFO   Received message: keepalive
+[00:25:00.937] (1f18a8c00) INFO   Sending message: keepalive
+[00:25:01.166] (1f18a8c00) INFO   Received message: keepalive
+[00:25:20.937] (1f18a8c00) INFO   Sending message: keepalive
+[00:25:21.166] (1f18a8c00) INFO   Received message: keepalive
+[00:25:40.950] (1f18a8c00) INFO   Sending message: keepalive
+[00:25:41.180] (1f18a8c00) INFO   Received message: keepalive
+[00:26:00.934] (1f18a8c00) INFO   Sending message: keepalive
+[00:26:01.162] (1f18a8c00) INFO   Received message: keepalive
+[00:26:20.937] (1f18a8c00) INFO   Sending message: keepalive
+[00:26:21.165] (1f18a8c00) INFO   Received message: keepalive
+[00:26:40.938] (1f18a8c00) INFO   Sending message: keepalive
+[00:26:41.168] (1f18a8c00) INFO   Received message: keepalive
+[00:27:00.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:27:01.164] (1f18a8c00) INFO   Received message: keepalive
+[00:27:20.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:27:21.164] (1f18a8c00) INFO   Received message: keepalive
+[00:27:40.942] (1f18a8c00) INFO   Sending message: keepalive
+[00:27:41.172] (1f18a8c00) INFO   Received message: keepalive
+[00:28:00.936] (1f18a8c00) INFO   Sending message: keepalive
+[00:28:01.165] (1f18a8c00) INFO   Received message: keepalive
+[00:28:20.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:28:21.163] (1f18a8c00) INFO   Received message: keepalive
+[00:28:40.936] (1f18a8c00) INFO   Sending message: keepalive
+[00:28:41.165] (1f18a8c00) INFO   Received message: keepalive
+[00:29:00.949] (1f18a8c00) INFO   Sending message: keepalive
+[00:29:01.179] (1f18a8c00) INFO   Received message: keepalive
+[00:29:20.936] (1f18a8c00) INFO   Sending message: keepalive
+[00:29:21.165] (1f18a8c00) INFO   Received message: keepalive
+[00:29:40.973] (1f18a8c00) INFO   Sending message: keepalive
+[00:29:41.257] (1f18a8c00) INFO   Received message: keepalive
+[00:30:00.934] (1f18a8c00) INFO   Sending message: keepalive
+[00:30:01.162] (1f18a8c00) INFO   Received message: keepalive
+[00:30:20.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:30:21.168] (1f18a8c00) INFO   Received message: keepalive
+[00:30:40.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:30:41.164] (1f18a8c00) INFO   Received message: keepalive
+[00:31:00.937] (1f18a8c00) INFO   Sending message: keepalive
+[00:31:01.166] (1f18a8c00) INFO   Received message: keepalive
+[00:31:20.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:31:21.163] (1f18a8c00) INFO   Received message: keepalive
+[00:31:40.960] (1f18a8c00) INFO   Sending message: keepalive
+[00:31:41.202] (1f18a8c00) INFO   Received message: keepalive
+[00:32:00.951] (1f18a8c00) INFO   Sending message: keepalive
+[00:32:01.179] (1f18a8c00) INFO   Received message: keepalive
+[00:32:06.789] (1f18a8c00) INFO   Received message: {"data": {"action": "write", "content": "import os\nimport csv\nimport subprocess\nfrom time import sleep\n\nQUEUE_FILE = '/Volumes/macOS-extravol/majinbo/job_queue.txt'\nCONTEXT_FILE = '/Volumes/macOS-extravol/majinbo/context.txt'\n\n# Function to add a job to the queue\ndef add_job(command):\n    job_id = get_next_job_id()\n    with open(QUEUE_FILE, 'a') as f:\n        writer = csv.writer(f)\n        writer.writerow([job_id, command, 'queued'])\n    update_context(f'Job {job_id} added to the queue with command: {command}')\n    return job_id\n\n# Function to get the next job ID\ndef get_next_job_id():\n    if not os.path.exists(QUEUE_FILE):\n        return 1\n    with open(QUEUE_FILE, 'r') as f:\n        reader = csv.reader(f)\n        rows = list(reader)\n        if len(rows) <= 1:\n            return 1\n        last_id = int(rows[-1][0])\n        return last_id + 1\n\n# Function to check the status of a job\ndef check_job_status(job_id):\n    if not os.path.exists(QUEUE_FILE):\n        return 'Job not found'\n    with open(QUEUE_FILE, 'r') as f:\n        reader = csv.reader(f)\n        for row in reader:\n            if row[0] == str(job_id):\n                return row[2]\n    return 'Job not found'\n\n# Function to execute jobs in the queue\ndef execute_jobs():\n    while True:\n        stop_existing_jobs()\n        with open(QUEUE_FILE, 'r') as f:\n            reader = csv.reader(f)\n            rows = list(reader)\n        if len(rows) <= 1:\n            sleep(2)\n            continue\n        for row in rows[1:]:\n            job_id, command, status = row\n            if status == 'queued':\n                if is_job_running(command):\n                    continue\n                update_job_status(job_id, 'running')\n                subprocess.Popen(f'screen -dmS job_{job_id} bash -c \"{command}\" && echo {job_id} completed', shell=True)\n                sleep(2)\n                update_job_status(job_id, 'completed')\n                update_context(f'Job {job_id} with command \"{command}\" has been completed')\n        sleep(2)\n\n# Function to check if a job with the same command is already running\ndef is_job_running(command):\n    result = subprocess.run(['pgrep', '-f', command], stdout=subprocess.PIPE)\n    return result.returncode == 0\n\n# Function to stop existing jobs\ndef stop_existing_jobs():\n    subprocess.run(['pkill', '-f', 'job_manager.py run'])\n    update_context('Stopped existing job_manager.py run processes')\n\n# Function to update the status of a job\ndef update_job_status(job_id, status):\n    with open(QUEUE_FILE, 'r') as f:\n        reader = csv.reader(f)\n        rows = list(reader)\n    with open(QUEUE_FILE, 'w') as f:\n        writer = csv.writer(f)\n        for row in rows:\n            if row[0] == str(job_id):\n                row[2] = status\n            writer.writerow(row)\n\n# Function to update the context file\ndef update_context(message):\n    with open(CONTEXT_FILE, 'a') as f:\n        f.write(f'CONTEXT: {message}\\n')\n\nif __name__ == '__main__':\n    import sys\n    if len(sys.argv) < 2:\n        print('Usage: python job_manager.py <add|status|run> [args...]')\n        sys.exit(1)\n    command = sys.argv[1]\n    if command == 'add' and len(sys.argv) == 3:\n        job_command = sys.argv[2]\n        job_id = add_job(job_command)\n        print(f'Job {job_id} added to the queue')\n    elif command == 'status' and len(sys.argv) == 3:\n        job_id = int(sys.argv[2])\n        status = check_job_status(job_id)\n        print(f'Job {job_id} status: {status}')\n    elif command == 'run':\n        execute_jobs()\n    else:\n        print('Invalid command or arguments')\n        sys.exit(1)\n", "path": "/Volumes/macOS-extravol/majinbo/job_manager.py"}, "request_id": "b3cf06a7-166c-41e8-b58d-c4c3d8b61a84"}
+[00:32:06.908] (1f18a8c00) INFO   Sending message: {"data":{"size":3550},"error":false,"request_id":"b3cf06a7-166c-41e8-b58d-c4c3d8b61a84"}
+[00:32:14.067] (1f18a8c00) INFO   Received message: {"data": {"action": "command", "command": "pkill -f 'job_manager.py run'"}, "request_id": "501dec46-c8d7-4d04-925b-9ea0c0d59a0f"}
+[00:32:14.566] (1f18a8c00) INFO   Sending message: {"data":{"return_code":null,"stdout":"","stderr":""},"error":false,"request_id":"b82b52c1-bd15-4e68-9120-9c95ed875dcf"}
+[00:32:14.567] (1f18a8c00) INFO   Sending message: {"data":{"return_code":null,"stdout":"","stderr":""},"error":false,"request_id":"ff4ca6c3-6137-4eb6-831a-11d28cd016ab"}
+[00:32:14.714] (1f18a8c00) INFO   Sending message: {"data":{"return_code":0,"stdout":"","stderr":""},"error":false,"request_id":"501dec46-c8d7-4d04-925b-9ea0c0d59a0f"}
+[00:32:20.788] (1f18a8c00) INFO   Received message: {"data": {"action": "command", "command": "python3 /Volumes/macOS-extravol/majinbo/job_manager.py add 'echo Hello, Clean World!'"}, "request_id": "2af53bac-fcf9-4c91-8df9-46ff16caa36d"}
+[00:32:20.862] (1f18a8c00) INFO   Sending message: {"data":{"return_code":0,"stdout":"Job 5 added to the queue\n","stderr":""},"error":false,"request_id":"2af53bac-fcf9-4c91-8df9-46ff16caa36d"}
+[00:32:20.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:32:21.314] (1f18a8c00) INFO   Received message: keepalive
+[00:32:28.831] (1f18a8c00) INFO   Received message: {"data": {"action": "command", "command": "python3 /Volumes/macOS-extravol/majinbo/job_manager.py status 5"}, "request_id": "39ad3a76-7c8b-4279-a899-f1f85023ab5a"}
+[00:32:28.875] (1f18a8c00) INFO   Sending message: {"data":{"return_code":0,"stdout":"Job 5 status: queued\n","stderr":""},"error":false,"request_id":"39ad3a76-7c8b-4279-a899-f1f85023ab5a"}
+[00:32:37.607] (1f18a8c00) INFO   Received message: {"data": {"action": "command", "command": "python3 /Volumes/macOS-extravol/majinbo/job_manager.py run"}, "request_id": "60f915b8-f540-4a88-aa94-3cc5efb52e33"}
+[00:32:40.945] (1f18a8c00) INFO   Sending message: keepalive
+[00:32:41.174] (1f18a8c00) INFO   Received message: keepalive
+[00:33:00.989] (1f18a8c00) INFO   Sending message: keepalive
+[00:33:01.222] (1f18a8c00) INFO   Received message: keepalive
+[00:33:20.936] (1f18a8c00) INFO   Sending message: keepalive
+[00:33:21.164] (1f18a8c00) INFO   Received message: keepalive
+[00:33:40.937] (1f18a8c00) INFO   Sending message: keepalive
+[00:33:41.207] (1f18a8c00) INFO   Received message: keepalive
+[00:34:00.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:34:01.164] (1f18a8c00) INFO   Received message: keepalive
+[00:34:20.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:34:21.163] (1f18a8c00) INFO   Received message: keepalive
+[00:34:40.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:34:41.163] (1f18a8c00) INFO   Received message: keepalive
+[00:35:00.985] (1f18a8c00) INFO   Sending message: keepalive
+[00:35:01.218] (1f18a8c00) INFO   Received message: keepalive
+[00:35:20.934] (1f18a8c00) INFO   Sending message: keepalive
+[00:35:21.161] (1f18a8c00) INFO   Received message: keepalive
+[00:35:40.939] (1f18a8c00) INFO   Sending message: keepalive
+[00:35:41.168] (1f18a8c00) INFO   Received message: keepalive
+[00:36:00.949] (1f18a8c00) INFO   Sending message: keepalive
+[00:36:01.177] (1f18a8c00) INFO   Received message: keepalive
+[00:36:20.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:36:21.162] (1f18a8c00) INFO   Received message: keepalive
+[00:36:40.948] (1f18a8c00) INFO   Sending message: keepalive
+[00:36:41.180] (1f18a8c00) INFO   Received message: keepalive
+[00:37:00.937] (1f18a8c00) INFO   Sending message: keepalive
+[00:37:01.175] (1f18a8c00) INFO   Received message: keepalive
+[00:37:20.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:37:21.163] (1f18a8c00) INFO   Received message: keepalive
+[00:37:40.939] (1f18a8c00) INFO   Sending message: keepalive
+[00:37:41.169] (1f18a8c00) INFO   Received message: keepalive
+[00:38:00.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:38:01.162] (1f18a8c00) INFO   Received message: keepalive
+[00:38:20.934] (1f18a8c00) INFO   Sending message: keepalive
+[00:38:21.163] (1f18a8c00) INFO   Received message: keepalive
+[00:38:40.942] (1f18a8c00) INFO   Sending message: keepalive
+[00:38:41.172] (1f18a8c00) INFO   Received message: keepalive
+[00:39:00.941] (1f18a8c00) INFO   Sending message: keepalive
+[00:39:01.181] (1f18a8c00) INFO   Received message: keepalive
+[00:39:20.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:39:21.170] (1f18a8c00) INFO   Received message: keepalive
+[00:39:40.934] (1f18a8c00) INFO   Sending message: keepalive
+[00:39:41.163] (1f18a8c00) INFO   Received message: keepalive
+[00:40:00.942] (1f18a8c00) INFO   Sending message: keepalive
+[00:40:01.172] (1f18a8c00) INFO   Received message: keepalive
+[00:40:21.161] (1f18a8c00) INFO   Sending message: keepalive
+[00:40:21.419] (1f18a8c00) INFO   Received message: keepalive
+[00:40:40.966] (1f18a8c00) INFO   Sending message: keepalive
+[00:40:41.214] (1f18a8c00) INFO   Received message: keepalive
+[00:41:00.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:41:01.164] (1f18a8c00) INFO   Received message: keepalive
+[00:41:20.937] (1f18a8c00) INFO   Sending message: keepalive
+[00:41:21.358] (1f18a8c00) INFO   Received message: keepalive
+[00:41:40.937] (1f18a8c00) INFO   Sending message: keepalive
+[00:41:41.165] (1f18a8c00) INFO   Received message: keepalive
+[00:42:00.937] (1f18a8c00) INFO   Sending message: keepalive
+[00:42:01.167] (1f18a8c00) INFO   Received message: keepalive
+[00:42:07.073] (1f18a8c00) INFO   Received message: {"data": {"action": "command", "command": "pkill -f 'job_manager.py run'"}, "request_id": "0d0cfb2d-0d6b-4bff-af19-486fcad2f646"}
+[00:42:07.241] (1f18a8c00) INFO   Sending message: {"data":{"return_code":0,"stdout":"","stderr":""},"error":false,"request_id":"0d0cfb2d-0d6b-4bff-af19-486fcad2f646"}
+[00:42:07.241] (1f18a8c00) INFO   Sending message: {"data":{"return_code":null,"stdout":"5 completed\n","stderr":""},"error":false,"request_id":"60f915b8-f540-4a88-aa94-3cc5efb52e33"}
+[00:42:16.754] (1f18a8c00) INFO   Received message: {"data": {"action": "command", "command": "nohup python3 /Volumes/macOS-extravol/majinbo/job_manager.py run &"}, "request_id": "1669018c-b816-40c5-98db-847dae5079b6"}
+[00:42:20.936] (1f18a8c00) INFO   Sending message: keepalive
+[00:42:21.162] (1f18a8c00) INFO   Received message: keepalive
+[00:42:40.937] (1f18a8c00) INFO   Sending message: keepalive
+[00:42:41.165] (1f18a8c00) INFO   Received message: keepalive
+[00:43:00.942] (1f18a8c00) INFO   Sending message: keepalive
+[00:43:01.180] (1f18a8c00) INFO   Received message: keepalive
+[00:43:08.858] (1f18a8c00) INFO   Received message: {"data": {"action": "write", "content": "#!/bin/bash\n\nnohup python3 /Volumes/macOS-extravol/majinbo/job_manager.py run > /Volumes/macOS-extravol/majinbo/job_manager.log 2>&1 &\necho \"Job manager running in background with nohup\"\n", "path": "/Volumes/macOS-extravol/majinbo/run_jobs.sh"}, "request_id": "9ce334f6-e186-4c1d-98bf-da64a8316fe1"}
+[00:43:08.868] (1f18a8c00) INFO   Sending message: {"data":{"size":187},"error":false,"request_id":"9ce334f6-e186-4c1d-98bf-da64a8316fe1"}
+[00:43:20.934] (1f18a8c00) INFO   Sending message: keepalive
+[00:43:21.161] (1f18a8c00) INFO   Received message: keepalive
+[00:43:21.919] (1f18a8c00) INFO   Received message: {"data": {"action": "write", "content": "#!/bin/bash\n\nnohup python3 /Volumes/macOS-extravol/majinbo/job_manager.py run > /Volumes/macOS-extravol/majinbo/job_manager.log 2>&1 &\necho \"Job manager running in background with nohup\"\n", "path": "/Volumes/macOS-extravol/majinbo/run_jobs.sh"}, "request_id": "cf5dc978-66e7-4061-a994-89a7706bc54e"}
+[00:43:22.072] (1f18a8c00) INFO   Sending message: {"data":{"size":187},"error":false,"request_id":"cf5dc978-66e7-4061-a994-89a7706bc54e"}
+[00:43:30.472] (1f18a8c00) INFO   Received message: {"data": {"action": "command", "command": "chmod +x /Volumes/macOS-extravol/majinbo/run_jobs.sh && /Volumes/macOS-extravol/majinbo/run_jobs.sh"}, "request_id": "c7ffcc78-60da-4dc0-9f9d-649c5423e95e"}
+[00:43:31.224] (1f18a8c00) INFO   Sending message: {"data":{"return_code":0,"stdout":"Job manager running in background with nohup\n","stderr":""},"error":false,"request_id":"c7ffcc78-60da-4dc0-9f9d-649c5423e95e"}
+[00:43:31.373] (1f18a8c00) INFO   Sending message: {"data":{"return_code":0,"stdout":"","stderr":""},"error":false,"request_id":"1669018c-b816-40c5-98db-847dae5079b6"}
+[00:43:40.473] (1f18a8c00) INFO   Received message: {"data": {"action": "command", "command": "python3 /Volumes/macOS-extravol/majinbo/job_manager.py status 5"}, "request_id": "09559152-6e95-4829-ab58-dbdc1c9d8b5a"}
+[00:43:40.515] (1f18a8c00) INFO   Sending message: {"data":{"return_code":0,"stdout":"Job 5 status: completed\n","stderr":""},"error":false,"request_id":"09559152-6e95-4829-ab58-dbdc1c9d8b5a"}
+[00:43:40.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:43:41.161] (1f18a8c00) INFO   Received message: keepalive
+[00:44:00.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:44:01.163] (1f18a8c00) INFO   Received message: keepalive
+[00:44:20.939] (1f18a8c00) INFO   Sending message: keepalive
+[00:44:21.168] (1f18a8c00) INFO   Received message: keepalive
+[00:44:40.938] (1f18a8c00) INFO   Sending message: keepalive
+[00:44:41.177] (1f18a8c00) INFO   Received message: keepalive
+[00:45:00.940] (1f18a8c00) INFO   Sending message: keepalive
+[00:45:01.170] (1f18a8c00) INFO   Received message: keepalive
+[00:45:20.939] (1f18a8c00) INFO   Sending message: keepalive
+[00:45:21.182] (1f18a8c00) INFO   Received message: keepalive
+[00:45:27.653] (1f18a8c00) INFO   Received message: {"data": {"action": "write", "content": "import os\nimport csv\nimport subprocess\nfrom time import sleep\n\nQUEUE_FILE = '/Volumes/macOS-extravol/majinbo/job_queue.txt'\nCONTEXT_FILE = '/Volumes/macOS-extravol/majinbo/context.txt'\n\n# Function to add a job to the queue with priority\ndef add_job(command, priority=1):\n    job_id = get_next_job_id()\n    with open(QUEUE_FILE, 'a') as f:\n        writer = csv.writer(f)\n        writer.writerow([job_id, command, 'queued', priority])\n    update_context(f'Job {job_id} added to the queue with command: {command} and priority: {priority}')\n    return job_id\n\n# Function to get the next job ID\ndef get_next_job_id():\n    if not os.path.exists(QUEUE_FILE):\n        return 1\n    with open(QUEUE_FILE, 'r') as f:\n        reader = csv.reader(f)\n        rows = list(reader)\n        if len(rows) <= 1:\n            return 1\n        last_id = int(rows[-1][0])\n        return last_id + 1\n\n# Function to check the status of a job\ndef check_job_status(job_id):\n    if not os.path.exists(QUEUE_FILE):\n        return 'Job not found'\n    with open(QUEUE_FILE, 'r') as f:\n        reader = csv.reader(f)\n        for row in reader:\n            if row[0] == str(job_id):\n                return row[2]\n    return 'Job not found'\n\n# Function to execute jobs in the queue based on priority\ndef execute_jobs():\n    while True:\n        stop_existing_jobs()\n        with open(QUEUE_FILE, 'r') as f:\n            reader = csv.reader(f)\n            rows = list(reader)\n        if len(rows) <= 1:\n            sleep(2)\n            continue\n        rows = sorted(rows[1:], key=lambda x: int(x[3]), reverse=True)  # Sort by priority\n        for row in rows:\n            job_id, command, status, priority = row\n            if status == 'queued':\n                if is_job_running(command):\n                    continue\n                update_job_status(job_id, 'running')\n                subprocess.Popen(f'screen -dmS job_{job_id} bash -c \"{command}\" && echo {job_id} completed', shell=True)\n                sleep(2)\n                update_job_status(job_id, 'completed')\n                update_context(f'Job {job_id} with command \"{command}\" has been completed')\n        sleep(2)\n\n# Function to check if a job with the same command is already running\ndef is_job_running(command):\n    result = subprocess.run(['pgrep', '-f', command], stdout=subprocess.PIPE)\n    return result.returncode == 0\n\n# Function to stop existing jobs\ndef stop_existing_jobs():\n    subprocess.run(['pkill', '-f', 'job_manager.py run'])\n    update_context('Stopped existing job_manager.py run processes')\n\n# Function to update the status of a job\ndef update_job_status(job_id, status):\n    with open(QUEUE_FILE, 'r') as f:\n        reader = csv.reader(f)\n        rows = list(reader)\n    with open(QUEUE_FILE, 'w') as f:\n        writer = csv.writer(f)\n        for row in rows:\n            if row[0] == str(job_id):\n                row[2] = status\n            writer.writerow(row)\n\n# Function to update the context file\ndef update_context(message):\n    with open(CONTEXT_FILE, 'a') as f:\n        f.write(f'CONTEXT: {message}\\n')\n\nif __name__ == '__main__':\n    import sys\n    if len(sys.argv) < 2:\n        print('Usage: python job_manager.py <add|status|run> [args...]')\n        sys.exit(1)\n    command = sys.argv[1]\n    if command == 'add' and len(sys.argv) >= 3:\n        job_command = sys.argv[2]\n        priority = int(sys.argv[3]) if len(sys.argv) == 4 else 1\n        job_id = add_job(job_command, priority)\n        print(f'Job {job_id} added to the queue with priority {priority}')\n    elif command == 'status' and len(sys.argv) == 3:\n        job_id = int(sys.argv[2])\n        status = check_job_status(job_id)\n        print(f'Job {job_id} status: {status}')\n    elif command == 'run':\n        execute_jobs()\n    else:\n        print('Invalid command or arguments')\n        sys.exit(1)\n", "path": "/Volumes/macOS-extravol/majinbo/job_manager.py"}, "request_id": "2577c75a-ce8f-43d5-b9eb-68f844e77bd1"}
+[00:45:27.674] (1f18a8c00) INFO   Sending message: {"data":{"size":3826},"error":false,"request_id":"2577c75a-ce8f-43d5-b9eb-68f844e77bd1"}
+[00:45:36.988] (1f18a8c00) INFO   Received message: {"data": {"action": "command", "command": "pkill -f 'job_manager.py run'"}, "request_id": "c1362182-c0b3-48e0-988a-cef20989a522"}
+[00:45:37.018] (1f18a8c00) INFO   Sending message: {"data":{"return_code":0,"stdout":"","stderr":""},"error":false,"request_id":"c1362182-c0b3-48e0-988a-cef20989a522"}
+[00:45:40.948] (1f18a8c00) INFO   Sending message: keepalive
+[00:45:41.175] (1f18a8c00) INFO   Received message: keepalive
+[00:45:46.534] (1f18a8c00) INFO   Received message: {"data": {"action": "command", "command": "python3 /Volumes/macOS-extravol/majinbo/job_manager.py add 'echo High Priority Job' 10"}, "request_id": "ddfd4412-d791-47a2-84a8-c471752920e5"}
+[00:45:46.916] (1f18a8c00) INFO   Sending message: {"data":{"return_code":0,"stdout":"Job 6 added to the queue with priority 10\n","stderr":""},"error":false,"request_id":"ddfd4412-d791-47a2-84a8-c471752920e5"}
+[00:45:55.826] (1f18a8c00) INFO   Received message: {"data": {"action": "command", "command": "python3 /Volumes/macOS-extravol/majinbo/job_manager.py status 6"}, "request_id": "945b67e1-b351-4fe2-9f2b-1412bcb031a8"}
+[00:45:55.881] (1f18a8c00) INFO   Sending message: {"data":{"return_code":0,"stdout":"Job 6 status: queued\n","stderr":""},"error":false,"request_id":"945b67e1-b351-4fe2-9f2b-1412bcb031a8"}
+[00:46:01.157] (1f18a8c00) INFO   Sending message: keepalive
+[00:46:01.418] (1f18a8c00) INFO   Received message: keepalive
+[00:46:03.927] (1f18a8c00) INFO   Received message: {"data": {"action": "command", "command": "nohup /Volumes/macOS-extravol/majinbo/run_jobs.sh &"}, "request_id": "944e2af9-e211-402e-8a97-e64e7df2d19f"}
+[00:46:04.341] (1f18a8c00) INFO   Sending message: {"data":{"return_code":0,"stdout":"Job manager running in background with nohup\n","stderr":""},"error":false,"request_id":"944e2af9-e211-402e-8a97-e64e7df2d19f"}
+[00:46:14.196] (1f18a8c00) INFO   Received message: {"data": {"action": "command", "command": "python3 /Volumes/macOS-extravol/majinbo/job_manager.py status 6"}, "request_id": "52ed05ff-f458-4c8c-82d2-b04bc643e204"}
+[00:46:14.534] (1f18a8c00) INFO   Sending message: {"data":{"return_code":0,"stdout":"Job 6 status: queued\n","stderr":""},"error":false,"request_id":"52ed05ff-f458-4c8c-82d2-b04bc643e204"}
+[00:46:20.959] (1f18a8c00) INFO   Sending message: keepalive
+[00:46:21.200] (1f18a8c00) INFO   Received message: keepalive
+[00:46:22.558] (1f18a8c00) INFO   Received message: {"data": {"action": "read", "path": "/Volumes/macOS-extravol/majinbo/job_manager.log"}, "request_id": "535260e2-f148-4f4b-a873-b03320f98a63"}
+[00:46:22.576] (1f18a8c00) INFO   Sending message: {"data":{"content":"Traceback (most recent call last):\n  File \"/Volumes/macOS-extravol/majinbo/job_manager.py\", line 107, in <module>\n    execute_jobs()\n  File \"/Volumes/macOS-extravol/majinbo/job_manager.py\", line 51, in execute_jobs\n    rows = sorted(rows[1:], key=lambda x: int(x[3]), reverse=True)  # Sort by priority\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Volumes/macOS-extravol/majinbo/job_manager.py\", line 51, in <lambda>\n    rows = sorted(rows[1:], key=lambda x: int(x[3]), reverse=True)  # Sort by priority\n                                              ~^^^\nIndexError: list index out of range\n"},"error":false,"request_id":"535260e2-f148-4f4b-a873-b03320f98a63"}
+[00:46:40.938] (1f18a8c00) INFO   Sending message: keepalive
+[00:46:41.166] (1f18a8c00) INFO   Received message: keepalive
+[00:47:00.180] (1f18a8c00) INFO   Received message: {"data": {"action": "write", "content": "import os\nimport csv\nimport subprocess\nfrom time import sleep\n\nQUEUE_FILE = '/Volumes/macOS-extravol/majinbo/job_queue.txt'\nCONTEXT_FILE = '/Volumes/macOS-extravol/majinbo/context.txt'\n\n# Function to add a job to the queue with priority\ndef add_job(command, priority=1):\n    job_id = get_next_job_id()\n    with open(QUEUE_FILE, 'a') as f:\n        writer = csv.writer(f)\n        writer.writerow([job_id, command, 'queued', priority])\n    update_context(f'Job {job_id} added to the queue with command: {command} and priority: {priority}')\n    return job_id\n\n# Function to get the next job ID\ndef get_next_job_id():\n    if not os.path.exists(QUEUE_FILE):\n        return 1\n    with open(QUEUE_FILE, 'r') as f:\n        reader = csv.reader(f)\n        rows = list(reader)\n        if len(rows) <= 1:\n            return 1\n        last_id = int(rows[-1][0])\n        return last_id + 1\n\n# Function to check the status of a job\ndef check_job_status(job_id):\n    if not os.path.exists(QUEUE_FILE):\n        return 'Job not found'\n    with open(QUEUE_FILE, 'r') as f:\n        reader = csv.reader(f)\n        for row in reader:\n            if row[0] == str(job_id):\n                return row[2]\n    return 'Job not found'\n\n# Function to execute jobs in the queue based on priority\ndef execute_jobs():\n    while True:\n        stop_existing_jobs()\n        with open(QUEUE_FILE, 'r') as f:\n            reader = csv.reader(f)\n            rows = list(reader)\n        if len(rows) <= 1:\n            sleep(2)\n            continue\n        valid_rows = [row for row in rows[1:] if len(row) == 4]  # Ensure row has the expected length\n        if not valid_rows:\n            sleep(2)\n            continue\n        valid_rows = sorted(valid_rows, key=lambda x: int(x[3]), reverse=True)  # Sort by priority\n        for row in valid_rows:\n            job_id, command, status, priority = row\n            if status == 'queued':\n                if is_job_running(command):\n                    continue\n                update_job_status(job_id, 'running')\n                subprocess.Popen(f'screen -dmS job_{job_id} bash -c \"{command}\" && echo {job_id} completed', shell=True)\n                sleep(2)\n                update_job_status(job_id, 'completed')\n                update_context(f'Job {job_id} with command \"{command}\" has been completed')\n        sleep(2)\n\n# Function to check if a job with the same command is already running\ndef is_job_running(command):\n    result = subprocess.run(['pgrep', '-f', command], stdout=subprocess.PIPE)\n    return result.returncode == 0\n\n# Function to stop existing jobs\ndef stop_existing_jobs():\n    subprocess.run(['pkill', '-f', 'job_manager.py run'])\n    update_context('Stopped existing job_manager.py run processes')\n\n# Function to update the status of a job\ndef update_job_status(job_id, status):\n    with open(QUEUE_FILE, 'r') as f:\n        reader = csv.reader(f)\n        rows = list(reader)\n    with open(QUEUE_FILE, 'w') as f:\n        writer = csv.writer(f)\n        for row in rows:\n            if len(row) == 4 and row[0] == str(job_id):  # Ensure row has the expected length\n                row[2] = status\n            writer.writerow(row)\n\n# Function to update the context file\ndef update_context(message):\n    with open(CONTEXT_FILE, 'a') as f:\n        f.write(f'CONTEXT: {message}\\n')\n\nif __name__ == '__main__':\n    import sys\n    if len(sys.argv) < 2:\n        print('Usage: python job_manager.py <add|status|run> [args...]')\n        sys.exit(1)\n    command = sys.argv[1]\n    if command == 'add' and len(sys.argv) >= 3:\n        job_command = sys.argv[2]\n        priority = int(sys.argv[3]) if len(sys.argv) == 4 else 1\n        job_id = add_job(job_command, priority)\n        print(f'Job {job_id} added to the queue with priority {priority}')\n    elif command == 'status' and len(sys.argv) == 3:\n        job_id = int(sys.argv[2])\n        status = check_job_status(job_id)\n        print(f'Job {job_id} status: {status}')\n    elif command == 'run':\n        execute_jobs()\n    else:\n        print('Invalid command or arguments')\n        sys.exit(1)\n", "path": "/Volumes/macOS-extravol/majinbo/job_manager.py"}, "request_id": "8d1a0cd3-d5e8-4965-92f9-01d319afa894"}
+[00:47:00.196] (1f18a8c00) INFO   Sending message: {"data":{"size":4067},"error":false,"request_id":"8d1a0cd3-d5e8-4965-92f9-01d319afa894"}
+[00:47:00.963] (1f18a8c00) INFO   Sending message: keepalive
+[00:47:01.216] (1f18a8c00) INFO   Received message: keepalive
+[00:47:12.921] (1f18a8c00) INFO   Received message: {"data": {"action": "command", "command": "pkill -f 'job_manager.py run'"}, "request_id": "67d15671-7dcd-4c2d-b9b5-f4a7780c1058"}
+[00:47:13.097] (1f18a8c00) INFO   Sending message: {"data":{"return_code":1,"stdout":"","stderr":""},"error":false,"request_id":"67d15671-7dcd-4c2d-b9b5-f4a7780c1058"}
+[00:47:20.954] (1f18a8c00) INFO   Sending message: keepalive
+[00:47:21.185] (1f18a8c00) INFO   Received message: keepalive
+[00:47:21.782] (1f18a8c00) INFO   Received message: {"data": {"action": "command", "command": "nohup /Volumes/macOS-extravol/majinbo/run_jobs.sh &"}, "request_id": "158fe954-7a68-4b41-9d39-c445b2efeaaf"}
+[00:47:21.804] (1f18a8c00) INFO   Sending message: {"data":{"return_code":0,"stdout":"Job manager running in background with nohup\n","stderr":""},"error":false,"request_id":"158fe954-7a68-4b41-9d39-c445b2efeaaf"}
+[00:47:40.934] (1f18a8c00) INFO   Sending message: keepalive
+[00:47:41.161] (1f18a8c00) INFO   Received message: keepalive
+[00:48:00.942] (1f18a8c00) INFO   Sending message: keepalive
+[00:48:01.169] (1f18a8c00) INFO   Received message: keepalive
+[00:48:20.938] (1f18a8c00) INFO   Sending message: keepalive
+[00:48:21.188] (1f18a8c00) INFO   Received message: keepalive
+[00:48:40.942] (1f18a8c00) INFO   Sending message: keepalive
+[00:48:41.172] (1f18a8c00) INFO   Received message: keepalive
+[00:49:01.894] (1f18a8c00) INFO   Sending message: keepalive
+[00:49:02.122] (1f18a8c00) INFO   Received message: keepalive
+[00:49:20.941] (1f18a8c00) INFO   Sending message: keepalive
+[00:49:21.169] (1f18a8c00) INFO   Received message: keepalive
+[00:49:40.942] (1f18a8c00) INFO   Sending message: keepalive
+[00:49:41.172] (1f18a8c00) INFO   Received message: keepalive
+[00:50:00.958] (1f18a8c00) INFO   Sending message: keepalive
+[00:50:01.189] (1f18a8c00) INFO   Received message: keepalive
+[00:50:20.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:50:21.162] (1f18a8c00) INFO   Received message: keepalive
+[00:50:40.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:50:41.162] (1f18a8c00) INFO   Received message: keepalive
+[00:51:01.102] (1f18a8c00) INFO   Sending message: keepalive
+[00:51:01.339] (1f18a8c00) INFO   Received message: keepalive
+[00:51:20.936] (1f18a8c00) INFO   Sending message: keepalive
+[00:51:21.164] (1f18a8c00) INFO   Received message: keepalive
+[00:51:40.934] (1f18a8c00) INFO   Sending message: keepalive
+[00:51:41.162] (1f18a8c00) INFO   Received message: keepalive
+[00:52:00.982] (1f18a8c00) INFO   Sending message: keepalive
+[00:52:01.241] (1f18a8c00) INFO   Received message: keepalive
+[00:52:20.962] (1f18a8c00) INFO   Sending message: keepalive
+[00:52:21.242] (1f18a8c00) INFO   Received message: keepalive
+[00:52:38.955] (1f18a8c00) INFO   Received message: {"data": {"action": "write", "content": "# Job Manager\n\nEste es un sistema de gesti\u00f3n de trabajos que permite a\u00f1adir, consultar y ejecutar trabajos en cola con soporte para prioridades.\n\n## Archivos\n\n- `job_manager.py`: Script principal para gestionar los trabajos.\n- `run_jobs.sh`: Script para ejecutar `job_manager.py run` en segundo plano.\n- `job_queue.txt`: Archivo que almacena la lista de trabajos en cola.\n\n## Uso\n\n### A\u00f1adir un Trabajo\n\n```\npython3 job_manager.py add \"<comando>\" [prioridad]\n```\n\n### Consultar el Estado de un Trabajo\n\n```\npython3 job_manager.py status <ID_trabajo>\n```\n\n### Ejecutar los Trabajos en Cola\n\n```\n./run_jobs.sh\n```\n\n", "path": "/Volumes/macOS-extravol/majinbo/README.md"}, "request_id": "5763ca08-8a8b-419f-93e2-37aa69bcfa83"}
+[00:52:39.436] (1f18a8c00) INFO   Sending message: {"data":{"size":616},"error":false,"request_id":"5763ca08-8a8b-419f-93e2-37aa69bcfa83"}
+[00:52:41.057] (1f18a8c00) INFO   Sending message: keepalive
+[00:52:41.284] (1f18a8c00) INFO   Received message: keepalive
+[00:52:49.738] (1f18a8c00) INFO   Received message: {"data": {"action": "write", "content": "*.pyc\n__pycache__/\njob_manager.log\n", "path": "/Volumes/macOS-extravol/majinbo/.gitignore"}, "request_id": "621ddd5f-101d-4e2d-bbc9-c984749f5764"}
+[00:52:49.795] (1f18a8c00) INFO   Sending message: {"data":{"size":35},"error":false,"request_id":"621ddd5f-101d-4e2d-bbc9-c984749f5764"}
+[00:52:58.633] (1f18a8c00) INFO   Received message: {"data": {"action": "command", "command": "cd /Volumes/macOS-extravol/majinbo && git init && git remote add origin https://github.com/tu_usuario/job-manager.git && git add . && git commit -m 'Initial commit'"}, "request_id": "953ea40e-38f7-4438-a383-b3a0551ee7cb"}
+[00:53:00.944] (1f18a8c00) INFO   Sending message: keepalive
+[00:53:01.507] (1f18a8c00) INFO   Received message: keepalive
+[00:53:01.770] (1f18a8c00) INFO   Sending message: {"data":{"return_code":0,"stdout":"Inicializado repositorio Git vacío en /Volumes/macOS-extravol/majinbo/.git/\n[master (commit-raíz) 3bd6ce8] Initial commit\n 9 files changed, 721 insertions(+)\n create mode 100644 .DS_Store\n create mode 100644 .gitignore\n create mode 100644 README.md\n create mode 160000 chat-ui\n create mode 100644 context.txt\n create mode 100644 job_manager.py\n create mode 100644 job_queue.txt\n create mode 100755 run_jobs.sh\n create mode 100755 serverwitch\n","stderr":"advertencia: agregando repositorio de git embebido: chat-ui\nhint: You've added another git repository inside your current repository.\nhint: Clones of the outer repository will not contain the contents of\nhint: the embedded repository and will not know how to obtain it.\nhint: If you meant to add a submodule, use:\nhint:\nhint: \tgit submodule add <url> chat-ui\nhint:\nhint: If you added this path by mistake, you can remove it from the\nhint: index with:\nhint:\nhint: \tgit rm --cached chat-ui\nhint:\nhint: See \"git help submodule\" for more information.\nhint: Disable this message with \"git config advice.addEmbeddedRepo false\"\n"},"error":false,"request_id":"953ea40e-38f7-4438-a383-b3a0551ee7cb"}
+[00:53:10.341] (1f18a8c00) INFO   Received message: {"data": {"action": "command", "command": "cd /Volumes/macOS-extravol/majinbo && git branch -M main && git push -u origin main"}, "request_id": "9af586cb-a019-4c8b-a7d6-cfe827971b9c"}
+[00:53:13.260] (1f18a8c00) INFO   Sending message: {"data":{"return_code":128,"stdout":"","stderr":"remote: Repository not found.\nfatal: repositorio 'https://github.com/tu_usuario/job-manager.git/' no encontrado\n"},"error":false,"request_id":"9af586cb-a019-4c8b-a7d6-cfe827971b9c"}
+[00:53:20.943] (1f18a8c00) INFO   Sending message: keepalive
+[00:53:21.170] (1f18a8c00) INFO   Received message: keepalive
+[00:53:40.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:53:41.162] (1f18a8c00) INFO   Received message: keepalive
+[00:54:00.937] (1f18a8c00) INFO   Sending message: keepalive
+[00:54:01.164] (1f18a8c00) INFO   Received message: keepalive
+[00:54:20.942] (1f18a8c00) INFO   Sending message: keepalive
+[00:54:21.170] (1f18a8c00) INFO   Received message: keepalive
+[00:54:40.941] (1f18a8c00) INFO   Sending message: keepalive
+[00:54:41.170] (1f18a8c00) INFO   Received message: keepalive
+[00:55:00.939] (1f18a8c00) INFO   Sending message: keepalive
+[00:55:01.167] (1f18a8c00) INFO   Received message: keepalive
+[00:55:20.940] (1f18a8c00) INFO   Sending message: keepalive
+[00:55:21.169] (1f18a8c00) INFO   Received message: keepalive
+[00:55:40.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:55:41.163] (1f18a8c00) INFO   Received message: keepalive
+[00:56:00.942] (1f18a8c00) INFO   Sending message: keepalive
+[00:56:01.169] (1f18a8c00) INFO   Received message: keepalive
+[00:56:20.939] (1f18a8c00) INFO   Sending message: keepalive
+[00:56:21.168] (1f18a8c00) INFO   Received message: keepalive
+[00:56:40.948] (1f18a8c00) INFO   Sending message: keepalive
+[00:56:41.174] (1f18a8c00) INFO   Received message: keepalive
+[00:57:00.937] (1f18a8c00) INFO   Sending message: keepalive
+[00:57:01.165] (1f18a8c00) INFO   Received message: keepalive
+[00:57:20.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:57:21.162] (1f18a8c00) INFO   Received message: keepalive
+[00:57:40.934] (1f18a8c00) INFO   Sending message: keepalive
+[00:57:41.162] (1f18a8c00) INFO   Received message: keepalive
+[00:58:00.935] (1f18a8c00) INFO   Sending message: keepalive
+[00:58:01.162] (1f18a8c00) INFO   Received message: keepalive
+[00:58:20.941] (1f18a8c00) INFO   Sending message: keepalive
+[00:58:21.169] (1f18a8c00) INFO   Received message: keepalive
+[00:58:40.939] (1f18a8c00) INFO   Sending message: keepalive
+[00:58:41.167] (1f18a8c00) INFO   Received message: keepalive
+[00:59:00.939] (1f18a8c00) INFO   Sending message: keepalive
+[00:59:01.167] (1f18a8c00) INFO   Received message: keepalive
+[00:59:20.938] (1f18a8c00) INFO   Sending message: keepalive
+[00:59:21.166] (1f18a8c00) INFO   Received message: keepalive
+[00:59:40.943] (1f18a8c00) INFO   Sending message: keepalive
+[00:59:41.171] (1f18a8c00) INFO   Received message: keepalive
+[01:00:00.941] (1f18a8c00) INFO   Sending message: keepalive
+[01:00:01.169] (1f18a8c00) INFO   Received message: keepalive
+[01:00:11.974] (1f18a8c00) INFO   Received message: {"data": {"action": "command", "command": "cd /Volumes/macOS-extravol/majinbo && echo '# Job Manager' > README.md && echo '*.pyc\n__pycache__/\njob_manager.log' > .gitignore && git init && git add . && git commit -m 'Initial commit'"}, "request_id": "af414671-03f4-4e81-9977-42033e245017"}
+[01:00:12.113] (1f18a8c00) INFO   Sending message: {"data":{"return_code":0,"stdout":"Reinicializado el repositorio Git existente en /Volumes/macOS-extravol/majinbo/.git/\n[main 87bb0b7] Initial commit\n 3 files changed, 210 insertions(+), 29 deletions(-)\n","stderr":""},"error":false,"request_id":"af414671-03f4-4e81-9977-42033e245017"}
+[01:00:20.943] (1f18a8c00) INFO   Sending message: keepalive
+[01:00:21.170] (1f18a8c00) INFO   Received message: keepalive
+[01:00:23.420] (1f18a8c00) INFO   Received message: {"data": {"action": "command", "command": "gh repo create job-manager --public --confirm && git remote add origin https://github.com/tu_usuario/job-manager.git && git branch -M main && git push -u origin main"}, "request_id": "0cd37448-2259-4d52-9108-63b83e03f34c"}
+[01:00:24.730] (1f18a8c00) INFO   Sending message: {"data":{"return_code":3,"stdout":"https://github.com/genhub-tech/job-manager\n","stderr":"Flag --confirm has been deprecated, Pass any argument to skip confirmation prompt\nerror: remoto origin ya existe.\n"},"error":false,"request_id":"0cd37448-2259-4d52-9108-63b83e03f34c"}
+[01:00:33.837] (1f18a8c00) INFO   Received message: {"data": {"action": "command", "command": "cd /Volumes/macOS-extravol/majinbo && git remote remove origin && git remote add origin https://github.com/genhub-tech/job-manager.git && git push -u origin main"}, "request_id": "b35f67c5-af89-4ea9-9b3a-da326bc0bac0"}
+[01:00:38.337] (1f18a8c00) INFO   Sending message: {"data":{"return_code":0,"stdout":"rama 'main' configurada para rastrear 'origin/main'.\n","stderr":"To https://github.com/genhub-tech/job-manager.git\n * [new branch]      main -> main\n"},"error":false,"request_id":"b35f67c5-af89-4ea9-9b3a-da326bc0bac0"}
+[01:00:40.935] (1f18a8c00) INFO   Sending message: keepalive
+[01:00:41.162] (1f18a8c00) INFO   Received message: keepalive
+[01:01:00.938] (1f18a8c00) INFO   Sending message: keepalive
+[01:01:01.166] (1f18a8c00) INFO   Received message: keepalive
+[01:01:20.937] (1f18a8c00) INFO   Sending message: keepalive
+[01:01:21.167] (1f18a8c00) INFO   Received message: keepalive
+[01:01:26.620] (1f18a8c00) INFO   Received message: {"data": {"action": "write", "content": "import os\nimport csv\nimport subprocess\nfrom time import sleep\nimport json\n\nQUEUE_FILE = '/Volumes/macOS-extravol/majinbo/job_queue.txt'\nCONTEXT_FILE = '/Volumes/macOS-extravol/majinbo/context.txt'\nSTATE_FILE = '/Volumes/macOS-extravol/majinbo/job_state.json'\n\n# Function to add a job to the queue with priority\ndef add_job(command, priority=1):\n    job_id = get_next_job_id()\n    with open(QUEUE_FILE, 'a') as f:\n        writer = csv.writer(f)\n        writer.writerow([job_id, command, 'queued', priority])\n    update_context(f'Job {job_id} added to the queue with command: {command} and priority: {priority}')\n    return job_id\n\n# Function to get the next job ID\ndef get_next_job_id():\n    if not os.path.exists(QUEUE_FILE):\n        return 1\n    with open(QUEUE_FILE, 'r') as f:\n        reader = csv.reader(f)\n        rows = list(reader)\n        if len(rows) <= 1:\n            return 1\n        last_id = int(rows[-1][0])\n        return last_id + 1\n\n# Function to check the status of a job\ndef check_job_status(job_id):\n    if not os.path.exists(QUEUE_FILE):\n        return 'Job not found'\n    with open(QUEUE_FILE, 'r') as f:\n        reader = csv.reader(f)\n        for row in reader:\n            if row[0] == str(job_id):\n                return row[2]\n    return 'Job not found'\n\n# Function to execute jobs in the queue based on priority\ndef execute_jobs():\n    restore_state()\n    while True:\n        stop_existing_jobs()\n        with open(QUEUE_FILE, 'r') as f:\n            reader = csv.reader(f)\n            rows = list(reader)\n        if len(rows) <= 1:\n            sleep(2)\n            continue\n        valid_rows = [row for row in rows[1:] if len(row) == 4]  # Ensure row has the expected length\n        if not valid_rows:\n            sleep(2)\n            continue\n        valid_rows = sorted(valid_rows, key=lambda x: int(x[3]), reverse=True)  # Sort by priority\n        for row in valid_rows:\n            job_id, command, status, priority = row\n            if status == 'queued':\n                if is_job_running(command):\n                    continue\n                update_job_status(job_id, 'running')\n                save_state(job_id, 'running')\n                subprocess.Popen(f'screen -dmS job_{job_id} bash -c \"{command}\" && echo {job_id} completed', shell=True)\n                sleep(2)\n                update_job_status(job_id, 'completed')\n                save_state(job_id, 'completed')\n                update_context(f'Job {job_id} with command \"{command}\" has been completed')\n        sleep(2)\n\n# Function to check if a job with the same command is already running\ndef is_job_running(command):\n    result = subprocess.run(['pgrep', '-f', command], stdout=subprocess.PIPE)\n    return result.returncode == 0\n\n# Function to stop existing jobs\ndef stop_existing_jobs():\n    subprocess.run(['pkill', '-f', 'job_manager.py run'])\n    update_context('Stopped existing job_manager.py run processes')\n\n# Function to update the status of a job\ndef update_job_status(job_id, status):\n    with open(QUEUE_FILE, 'r') as f:\n        reader = csv.reader(f)\n        rows = list(reader)\n    with open(QUEUE_FILE, 'w') as f:\n        writer = csv.writer(f)\n        for row in rows:\n            if len(row) == 4 and row[0] == str(job_id):  # Ensure row has the expected length\n                row[2] = status\n            writer.writerow(row)\n\n# Function to update the context file\ndef update_context(message):\n    with open(CONTEXT_FILE, 'a') as f:\n        f.write(f'CONTEXT: {message}\\n')\n\n# Function to save the state of jobs\ndef save_state(job_id, status):\n    state = {}\n    if os.path.exists(STATE_FILE):\n        with open(STATE_FILE, 'r') as f:\n            state = json.load(f)\n    state[job_id] = status\n    with open(STATE_FILE, 'w') as f:\n        json.dump(state, f)\n\n# Function to restore the state of jobs\ndef restore_state():\n    if not os.path.exists(STATE_FILE):\n        return\n    with open(STATE_FILE, 'r') as f:\n        state = json.load(f)\n    with open(QUEUE_FILE, 'r') as f:\n        reader = csv.reader(f)\n        rows = list(reader)\n    with open(QUEUE_FILE, 'w') as f:\n        writer = csv.writer(f)\n        for row in rows:\n            if len(row) == 4 and row[0] in state:  # Ensure row has the expected length\n                row[2] = state[row[0]]\n            writer.writerow(row)\n\nif __name__ == '__main__':\n    import sys\n    if len(sys.argv) < 2:\n        print('Usage: python job_manager.py <add|status|run> [args...]')\n        sys.exit(1)\n    command = sys.argv[1]\n    if command == 'add' and len(sys.argv) >= 3:\n        job_command = sys.argv[2]\n        priority = int(sys.argv[3]) if len(sys.argv) == 4 else 1\n        job_id = add_job(job_command, priority)\n        print(f'Job {job_id} added to the queue with priority {priority}')\n    elif command == 'status' and len(sys.argv) == 3:\n        job_id = int(sys.argv[2])\n        status = check_job_status(job_id)\n        print(f'Job {job_id} status: {status}')\n    elif command == 'run':\n        execute_jobs()\n    else:\n        print('Invalid command or arguments')\n        sys.exit(1)\n", "path": "/Volumes/macOS-extravol/majinbo/job_manager.py"}, "request_id": "fc8abdf2-c7fc-4e61-baed-d5cfae33e43e"}
+[01:01:26.637] (1f18a8c00) INFO   Sending message: {"data":{"size":5072},"error":false,"request_id":"fc8abdf2-c7fc-4e61-baed-d5cfae33e43e"}
+[01:01:34.284] (1f18a8c00) INFO   Received message: {"data": {"action": "command", "command": "pkill -f 'job_manager.py run'"}, "request_id": "e608aaf8-19af-49b3-ae1f-619f5abd2be9"}
+[01:01:34.329] (1f18a8c00) INFO   Sending message: {"data":{"return_code":0,"stdout":"","stderr":""},"error":false,"request_id":"e608aaf8-19af-49b3-ae1f-619f5abd2be9"}
+[01:01:40.934] (1f18a8c00) INFO   Sending message: keepalive
+[01:01:41.161] (1f18a8c00) INFO   Received message: keepalive
+[01:01:45.492] (1f18a8c00) INFO   Received message: {"data": {"action": "command", "command": "nohup /Volumes/macOS-extravol/majinbo/run_jobs.sh &"}, "request_id": "9068a59c-cde2-4f59-8780-91c3ed6f69b6"}
+[01:01:45.507] (1f18a8c00) INFO   Sending message: {"data":{"return_code":0,"stdout":"Job manager running in background with nohup\n","stderr":""},"error":false,"request_id":"9068a59c-cde2-4f59-8780-91c3ed6f69b6"}
+[01:01:59.397] (1f18a8c00) INFO   Received message: {"data": {"action": "command", "command": "python3 /Volumes/macOS-extravol/majinbo/job_manager.py status 6"}, "request_id": "028f84d7-fde8-44e1-bb05-d60f0a9636a0"}
+[01:01:59.423] (1f18a8c00) INFO   Sending message: {"data":{"return_code":0,"stdout":"Job 6 status: completed\n","stderr":""},"error":false,"request_id":"028f84d7-fde8-44e1-bb05-d60f0a9636a0"}
+[01:02:00.935] (1f18a8c00) INFO   Sending message: keepalive
+[01:02:01.162] (1f18a8c00) INFO   Received message: keepalive
+[01:02:20.935] (1f18a8c00) INFO   Sending message: keepalive
+[01:02:21.163] (1f18a8c00) INFO   Received message: keepalive
+[01:02:40.939] (1f18a8c00) INFO   Sending message: keepalive
+[01:02:41.166] (1f18a8c00) INFO   Received message: keepalive
+[01:03:00.934] (1f18a8c00) INFO   Sending message: keepalive
+[01:03:01.162] (1f18a8c00) INFO   Received message: keepalive
+[01:03:20.938] (1f18a8c00) INFO   Sending message: keepalive
+[01:03:21.166] (1f18a8c00) INFO   Received message: keepalive
+[01:03:23.026] (1f18a8c00) INFO   Received message: {"data": {"action": "write", "content": "import os\nimport csv\nimport subprocess\nfrom time import sleep\nimport json\n\nQUEUE_FILE = '/Volumes/macOS-extravol/majinbo/job_queue.txt'\nCONTEXT_FILE = '/Volumes/macOS-extravol/majinbo/context.txt'\nSTATE_FILE = '/Volumes/macOS-extravol/majinbo/job_state.json'\n\n# Function to add a job to the queue with priority\ndef add_job(command, priority=1):\n    job_id = get_next_job_id()\n    with open(QUEUE_FILE, 'a') as f:\n        writer = csv.writer(f)\n        writer.writerow([job_id, command, 'queued', priority])\n    update_context(f'Job {job_id} added to the queue with command: {command} and priority: {priority}')\n    return job_id\n\n# Function to get the next job ID\ndef get_next_job_id():\n    if not os.path.exists(QUEUE_FILE):\n        return 1\n    with open(QUEUE_FILE, 'r') as f:\n        reader = csv.reader(f)\n        rows = list(reader)\n        if len(rows) <= 1:\n            return 1\n        last_id = int(rows[-1][0])\n        return last_id + 1\n\n# Function to check the status of a job\ndef check_job_status(job_id):\n    if not os.path.exists(QUEUE_FILE):\n        return 'Job not found'\n    with open(QUEUE_FILE, 'r') as f:\n        reader = csv.reader(f)\n        for row in reader:\n            if row[0] == str(job_id):\n                return row[2]\n    return 'Job not found'\n\n# Function to execute jobs in the queue based on priority\ndef execute_jobs():\n    restore_state()\n    while True:\n        stop_existing_jobs()\n        with open(QUEUE_FILE, 'r') as f:\n            reader = csv.reader(f)\n            rows = list(reader)\n        if len(rows) <= 1:\n            sleep(2)\n            continue\n        valid_rows = [row for row in rows[1:] if len(row) == 4]  # Ensure row has the expected length\n        if not valid_rows:\n            sleep(2)\n            continue\n        valid_rows = sorted(valid_rows, key=lambda x: int(x[3]), reverse=True)  # Sort by priority\n        for row in valid_rows:\n            job_id, command, status, priority = row\n            if status == 'queued':\n                if is_job_running(command):\n                    continue\n                update_job_status(job_id, 'running')\n                save_state(job_id, 'running')\n                try:\n                    subprocess.Popen(f'screen -dmS job_{job_id} bash -c \"{command}\" && echo {job_id} completed', shell=True)\n                    sleep(2)\n                    update_job_status(job_id, 'completed')\n                    save_state(job_id, 'completed')\n                    update_context(f'Job {job_id} with command \"{command}\" has been completed')\n                except Exception as e:\n                    update_context(f'Error executing job {job_id} with command \"{command}\": {e}')\n                    update_job_status(job_id, 'failed')\n                    save_state(job_id, 'failed')\n        sleep(2)\n\n# Function to check if a job with the same command is already running\ndef is_job_running(command):\n    result = subprocess.run(['pgrep', '-f', command], stdout=subprocess.PIPE)\n    return result.returncode == 0\n\n# Function to stop existing jobs\ndef stop_existing_jobs():\n    subprocess.run(['pkill', '-f', 'job_manager.py run'])\n    update_context('Stopped existing job_manager.py run processes')\n\n# Function to update the status of a job\ndef update_job_status(job_id, status):\n    with open(QUEUE_FILE, 'r') as f:\n        reader = csv.reader(f)\n        rows = list(reader)\n    with open(QUEUE_FILE, 'w') as f:\n        writer = csv.writer(f)\n        for row in rows:\n            if len(row) == 4 and row[0] == str(job_id):  # Ensure row has the expected length\n                row[2] = status\n            writer.writerow(row)\n\n# Function to update the context file\ndef update_context(message):\n    with open(CONTEXT_FILE, 'a') as f:\n        f.write(f'CONTEXT: {message}\\n')\n\n# Function to save the state of jobs\ndef save_state(job_id, status):\n    state = {}\n    if os.path.exists(STATE_FILE):\n        with open(STATE_FILE, 'r') as f:\n            state = json.load(f)\n    state[job_id] = status\n    with open(STATE_FILE, 'w') as f:\n        json.dump(state, f)\n\n# Function to restore the state of jobs\ndef restore_state():\n    if not os.path.exists(STATE_FILE):\n        return\n    with open(STATE_FILE, 'r') as f:\n        state = json.load(f)\n    with open(QUEUE_FILE, 'r') as f:\n        reader = csv.reader(f)\n        rows = list(reader)\n    with open(QUEUE_FILE, 'w') as f:\n        writer = csv.writer(f)\n        for row in rows:\n            if len(row) == 4 and row[0] in state:  # Ensure row has the expected length\n                row[2] = state[row[0]]\n            writer.writerow(row)\n\nif __name__ == '__main__':\n    import sys\n    if len(sys.argv) < 2:\n        print('Usage: python job_manager.py <add|status|run> [args...]')\n        sys.exit(1)\n    command = sys.argv[1]\n    if command == 'add' and len(sys.argv) >= 3:\n        job_command = sys.argv[2]\n        priority = int(sys.argv[3]) if len(sys.argv) == 4 else 1\n        job_id = add_job(job_command, priority)\n        print(f'Job {job_id} added to the queue with priority {priority}')\n    elif command == 'status' and len(sys.argv) == 3:\n        job_id = int(sys.argv[2])\n        status = check_job_status(job_id)\n        print(f'Job {job_id} status: {status}')\n    elif command == 'run':\n        execute_jobs()\n    else:\n        print('Invalid command or arguments')\n        sys.exit(1)\n", "path": "/Volumes/macOS-extravol/majinbo/job_manager.py"}, "request_id": "8ca714d5-5bd6-422d-929c-df7b4fed7e3c"}
+[01:03:23.044] (1f18a8c00) INFO   Sending message: {"data":{"size":5355},"error":false,"request_id":"8ca714d5-5bd6-422d-929c-df7b4fed7e3c"}
+[01:03:31.834] (1f18a8c00) INFO   Received message: {"data": {"action": "command", "command": "pkill -f 'job_manager.py run'"}, "request_id": "0d3bbe47-6853-4a6e-ac64-89b1b0743ef0"}
+[01:03:31.868] (1f18a8c00) INFO   Sending message: {"data":{"return_code":3,"stdout":"","stderr":"pkill: Regular expression evaluation error (illegal byte sequence)\n"},"error":false,"request_id":"0d3bbe47-6853-4a6e-ac64-89b1b0743ef0"}
+[01:03:40.935] (1f18a8c00) INFO   Sending message: keepalive
+[01:03:41.162] (1f18a8c00) INFO   Received message: keepalive
+[01:03:42.859] (1f18a8c00) INFO   Received message: {"data": {"action": "command", "command": "pgrep -fl 'job_manager.py run'"}, "request_id": "b56f2791-5271-49cf-ada7-0a4153bbacb9"}
+[01:03:42.902] (1f18a8c00) INFO   Sending message: {"data":{"return_code":3,"stdout":"","stderr":"pgrep: Regular expression evaluation error (illegal byte sequence)\n"},"error":false,"request_id":"b56f2791-5271-49cf-ada7-0a4153bbacb9"}
+[01:03:56.170] (1f18a8c00) INFO   Received message: {"data": {"action": "command", "command": "nohup /Volumes/macOS-extravol/majinbo/run_jobs.sh &"}, "request_id": "119314c0-ac3c-44e1-93db-869f5aad6b46"}
+[01:03:56.184] (1f18a8c00) INFO   Sending message: {"data":{"return_code":0,"stdout":"Job manager running in background with nohup\n","stderr":""},"error":false,"request_id":"119314c0-ac3c-44e1-93db-869f5aad6b46"}
+[01:04:00.934] (1f18a8c00) INFO   Sending message: keepalive
+[01:04:01.161] (1f18a8c00) INFO   Received message: keepalive
+[01:04:08.048] (1f18a8c00) INFO   Received message: {"data": {"action": "command", "command": "python3 /Volumes/macOS-extravol/majinbo/job_manager.py status 6"}, "request_id": "1e039a4f-04f8-444d-8617-0fff42b364b4"}
+[01:04:08.096] (1f18a8c00) INFO   Sending message: {"data":{"return_code":0,"stdout":"Job 6 status: completed\n","stderr":""},"error":false,"request_id":"1e039a4f-04f8-444d-8617-0fff42b364b4"}
+[01:04:18.289] (1f18a8c00) INFO   Received message: {"data": {"action": "read", "path": "/Volumes/macOS-extravol/majinbo/context.txt"}, "request_id": "956e498a-e83a-4c5e-9c12-4671b67ade71"}
+[01:04:18.298] (1f18a8c00) INFO   Sending message: {"data":{"content":"\nPropuestas de mejoras en el sistema de interacción para disminuir los errores:\n\n1. Validación de comandos y salida.\n   - Implementar validación de comandos antes de ejecutarlos.\n   - Validar la salida de los comandos y manejar errores de manera robusta.\n\n2. Uso de herramientas de gestión de tareas.\n   - Utilizar `nohup`, `screen` o `tmux` para procesos de larga duración.\n\n3. Automatización de tareas repetitivas.\n   - Crear scripts para tareas repetitivas y complejas.\n\n4. Documentación clara y detallada.\n   - Mantener una documentación clara y actualizada sobre configuraciones, comandos utilizados y tareas realizadas.\n\n5. Verificación del entorno.\n   - Verificar que el entorno es el adecuado antes de ejecutar comandos.\n\n6. Backups y rollbacks.\n   - Implementar un sistema de backups y rollbacks.\n\n7. Monitoreo y alertas.\n   - Configurar sistemas de monitoreo y alertas.\n\n8. Pruebas y simulaciones.\n   - Realizar pruebas y simulaciones en un entorno de desarrollo antes de producción.\n\n9. Optimización del flujo de trabajo.\n   - Revisar y optimizar los flujos de trabajo actuales.\nCONTEXT: Job 2 added to the queue with command: echo Hello, World!\nCONTEXT: Job 3 added to the queue with command: echo Hello, Adjusted World!\nCONTEXT: Job 4 added to the queue with command: echo Hello, Faster World!\nCONTEXT: Job 4 with command \"echo Hello, Faster World!\" has been completed\nCONTEXT: Job 5 added to the queue with command: echo Hello, Clean World!\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Job 5 with command \"echo Hello, Clean World!\" has been completed\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Job 6 added to the queue with command: echo High Priority Job and priority: 10\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Job 6 with command \"echo High Priority Job\" has been completed\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\nCONTEXT: Stopped existing job_manager.py run processes\n"},"error":false,"request_id":"956e498a-e83a-4c5e-9c12-4671b67ade71"}
+[01:04:20.935] (1f18a8c00) INFO   Sending message: keepalive
+[01:04:21.161] (1f18a8c00) INFO   Received message: keepalive
+[01:04:40.934] (1f18a8c00) INFO   Sending message: keepalive
+[01:04:41.160] (1f18a8c00) INFO   Received message: keepalive
+[01:05:00.935] (1f18a8c00) INFO   Sending message: keepalive
+[01:05:01.162] (1f18a8c00) INFO   Received message: keepalive
+[01:05:11.825] (1f18a8c00) INFO   Received message: {"data": {"action": "write", "content": "# Job Manager\n\nA simple job management system to handle job queues with priorities, implemented in Python.\n\n## Features\n\n- Add jobs to a queue with priority\n- Check the status of jobs\n- Execute jobs in the queue based on priority\n- Persist job states across restarts\n- Run jobs in the background using `nohup` and `screen`\n\n## Usage\n\n### Adding a Job\n\n```sh\npython3 job_manager.py add \"your_command_here\" [priority]\n```\n\n### Checking Job Status\n\n```sh\npython3 job_manager.py status job_id\n```\n\n### Running Jobs\n\n```sh\n./run_jobs.sh\n```\n\n### Example\n\n```sh\n# Add a job with priority 10\npython3 job_manager.py add \"echo 'Hello, High Priority World!'\" 10\n\n# Check the status of the job\npython3 job_manager.py status 1\n\n# Run the job manager to process the queue\n./run_jobs.sh\n```\n\n### Requirements\n\n- Python 3.x\n- `screen` and `nohup` installed\n\n### Error Handling\n\n- Errors are logged in the `context.txt` file.\n- Jobs that fail are marked as `failed` and their status is persisted.\n\n### License\n\nThis project is licensed under the MIT License.\n", "path": "/Volumes/macOS-extravol/majinbo/README.md"}, "request_id": "2308b6d4-0bf6-4f56-bd49-98a95e4496dd"}
+[01:05:11.840] (1f18a8c00) INFO   Sending message: {"data":{"size":1043},"error":false,"request_id":"2308b6d4-0bf6-4f56-bd49-98a95e4496dd"}
+[01:05:20.935] (1f18a8c00) INFO   Sending message: keepalive
+[01:05:21.163] (1f18a8c00) INFO   Received message: keepalive
+[01:05:31.913] (1f18a8c00) INFO   Received message: {"data": {"action": "write", "content": "# Use the official Python image from the Docker Hub\nFROM python:3.9-slim\n\n# Set the working directory in the container\nWORKDIR /app\n\n# Copy the current directory contents into the container at /app\nCOPY . /app\n\n# Install any needed packages specified in requirements.txt\nRUN pip install --no-cache-dir -r requirements.txt\n\n# Make port 80 available to the world outside this container\nEXPOSE 80\n\n# Define environment variable\nENV NAME JobManager\n\n# Run job_manager.py when the container launches\nCMD [\"python3\", \"job_manager.py\", \"run\"]\n", "path": "/Volumes/macOS-extravol/majinbo/Dockerfile"}, "request_id": "c45a8b35-eaf1-49ce-951e-2951008b6576"}
+[01:05:31.937] (1f18a8c00) INFO   Sending message: {"data":{"size":536},"error":false,"request_id":"c45a8b35-eaf1-49ce-951e-2951008b6576"}
+[01:05:40.935] (1f18a8c00) INFO   Sending message: keepalive
+[01:05:41.162] (1f18a8c00) INFO   Received message: keepalive
+[01:05:43.177] (1f18a8c00) INFO   Received message: {"data": {"action": "command", "command": "cd /Volumes/macOS-extravol/majinbo && docker build -t job-manager ."}, "request_id": "08372855-6489-40e9-a775-b4dc8c6906fa"}
+[01:05:43.373] (1f18a8c00) INFO   Sending message: {"data":{"return_code":1,"stdout":"","stderr":"ERROR: Cannot connect to the Docker daemon at unix:///Users/eleven/.docker/run/docker.sock. Is the docker daemon running?\n"},"error":false,"request_id":"08372855-6489-40e9-a775-b4dc8c6906fa"}
+[01:06:00.935] (1f18a8c00) INFO   Sending message: keepalive
+[01:06:01.161] (1f18a8c00) INFO   Received message: keepalive
+[01:06:20.935] (1f18a8c00) INFO   Sending message: keepalive
+[01:06:21.164] (1f18a8c00) INFO   Received message: keepalive
+[01:06:40.938] (1f18a8c00) INFO   Sending message: keepalive
+[01:06:41.167] (1f18a8c00) INFO   Received message: keepalive
+[01:07:00.935] (1f18a8c00) INFO   Sending message: keepalive
+[01:07:01.163] (1f18a8c00) INFO   Received message: keepalive
+[01:07:20.938] (1f18a8c00) INFO   Sending message: keepalive
+[01:07:21.166] (1f18a8c00) INFO   Received message: keepalive
+[01:07:40.938] (1f18a8c00) INFO   Sending message: keepalive
+[01:07:41.165] (1f18a8c00) INFO   Received message: keepalive
+[01:08:00.938] (1f18a8c00) INFO   Sending message: keepalive
+[01:08:01.165] (1f18a8c00) INFO   Received message: keepalive
+[01:08:20.938] (1f18a8c00) INFO   Sending message: keepalive
+[01:08:21.166] (1f18a8c00) INFO   Received message: keepalive
+[01:08:40.935] (1f18a8c00) INFO   Sending message: keepalive
+[01:08:41.161] (1f18a8c00) INFO   Received message: keepalive
+[01:08:50.098] (1f18a8c00) INFO   Received message: {"data": {"action": "read", "path": "/Volumes/macOS-extravol/majinbo/serverwitch-api"}, "request_id": "eec5f243-cafc-40c9-9e91-53e646b65c6c"}
+[01:08:50.107] (1f18a8c00) INFO   Sending message: {"data":"Error executing command: Is a directory (os error 21)","error":true,"request_id":"eec5f243-cafc-40c9-9e91-53e646b65c6c"}
+[01:09:00.677] (1f18a8c00) INFO   Received message: {"data": {"action": "command", "command": "ls -l /Volumes/macOS-extravol/majinbo/serverwitch-api"}, "request_id": "f3791d96-c521-40cb-8595-98f48f703d3d"}
+[01:09:00.684] (1f18a8c00) INFO   Sending message: {"data":{"return_code":0,"stdout":"total 456\n-rw-r--r--  1 eleven  wheel     530 Jun 13 20:47 Dockerfile\ndrwxr-xr-x  4 eleven  wheel     128 Jun 13 20:47 GPT\n-rw-r--r--  1 eleven  wheel   35150 Jun 13 20:47 LICENSE\n-rw-r--r--  1 eleven  wheel    2405 Jun 13 20:47 README.md\n-rw-r--r--  1 eleven  wheel     681 Jun 13 20:47 docker-compose.yaml\n-rw-r--r--  1 eleven  wheel     191 Jun 13 20:47 hypercorn.toml\n-rw-r--r--  1 eleven  wheel     513 Jun 13 20:47 logging.toml\n-rw-r--r--  1 eleven  wheel  130769 Jun 13 20:47 logo.png\ndrwxr-xr-x  8 eleven  wheel     256 Jun 13 20:47 nginx\n-rw-r--r--  1 eleven  wheel   34064 Jun 13 20:54 poetry.lock\n-rw-r--r--  1 eleven  wheel      32 Jun 13 20:47 poetry.toml\n-rw-r--r--  1 eleven  wheel     507 Jun 13 20:47 pyproject.toml\ndrwxr-xr-x  3 eleven  wheel      96 Jun 13 20:47 src\n","stderr":""},"error":false,"request_id":"f3791d96-c521-40cb-8595-98f48f703d3d"}
+[01:09:00.935] (1f18a8c00) INFO   Sending message: keepalive
+[01:09:01.162] (1f18a8c00) INFO   Received message: keepalive
+[01:09:20.940] (1f18a8c00) INFO   Sending message: keepalive
+[01:09:21.042] (1f18a8c00) INFO   Received message: {"data": {"action": "read", "path": "/Volumes/macOS-extravol/majinbo/serverwitch-api/Dockerfile"}, "request_id": "d0040103-ddd4-46d0-9ac5-77b58630c0c7"}
+[01:09:21.055] (1f18a8c00) INFO   Sending message: {"data":{"content":"# Builder image\nFROM python:3.11.5-slim-bookworm as builder\n\n# Install poetry\nRUN pip install poetry\n\n# Copy source\nRUN mkdir -p /app\nCOPY pyproject.toml poetry.toml README.md hypercorn.toml logging.toml /app/\nCOPY src/ /app/src/\n\n# Build project\nWORKDIR /app\nRUN poetry install\n\n# Base image\nFROM python:3.11.5-slim-bookworm as base\n\nRUN mkdir -p /var/log/serverwitch\nCOPY --from=builder /app /app\n\nWORKDIR /app\nENV PATH=\"/app/.venv/bin/:$PATH\"\nCMD [\"hypercorn\", \"--config\", \"hypercorn.toml\", \"serverwitch_api:app\"]\n\nEXPOSE 8000\n"},"error":false,"request_id":"d0040103-ddd4-46d0-9ac5-77b58630c0c7"}
+[01:09:21.166] (1f18a8c00) INFO   Received message: keepalive
+[01:09:35.175] (1f18a8c00) INFO   Received message: {"data": {"action": "read", "path": "/Volumes/macOS-extravol/majinbo/serverwitch-api/nginx/nginx.conf"}, "request_id": "7aa73f3f-c947-48b1-ae07-2bdbf82de155"}
+[01:09:35.184] (1f18a8c00) INFO   Sending message: {"data":"Error executing command: No such file or directory (os error 2)","error":true,"request_id":"7aa73f3f-c947-48b1-ae07-2bdbf82de155"}
+[01:09:40.934] (1f18a8c00) INFO   Sending message: keepalive
+[01:09:41.160] (1f18a8c00) INFO   Received message: keepalive
+[01:10:00.935] (1f18a8c00) INFO   Sending message: keepalive
+[01:10:01.161] (1f18a8c00) INFO   Received message: keepalive
+[01:10:03.762] (1f18a8c00) INFO   Received message: {"data": {"action": "write", "content": "server {\n    listen 80;\n    server_name your_domain.com;\n\n    location / {\n        proxy_pass http://127.0.0.1:8000;\n        proxy_set_header Host $host;\n        proxy_set_header X-Real-IP $remote_addr;\n        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n        proxy_set_header X-Forwarded-Proto $scheme;\n    }\n\n    location /.well-known/acme-challenge/ {\n        root /var/www/certbot;\n    }\n}\n\nserver {\n    listen 443 ssl;\n    server_name your_domain.com;\n\n    ssl_certificate /etc/letsencrypt/live/your_domain.com/fullchain.pem;\n    ssl_certificate_key /etc/letsencrypt/live/your_domain.com/privkey.pem;\n\n    include /etc/letsencrypt/options-ssl-nginx.conf;\n    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;\n\n    location / {\n        proxy_pass http://127.0.0.1:8000;\n        proxy_set_header Host $host;\n        proxy_set_header X-Real-IP $remote_addr;\n        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n        proxy_set_header X-Forwarded-Proto $scheme;\n    }\n}\n", "path": "/Volumes/macOS-extravol/majinbo/serverwitch-api/nginx/nginx.conf"}, "request_id": "4d75a4fa-883f-46e9-8e86-21be6ee2cb8a"}
+[01:10:03.775] (1f18a8c00) INFO   Sending message: {"data":{"size":1006},"error":false,"request_id":"4d75a4fa-883f-46e9-8e86-21be6ee2cb8a"}
+[01:10:20.938] (1f18a8c00) INFO   Sending message: keepalive
+[01:10:21.165] (1f18a8c00) INFO   Received message: keepalive
+[01:10:31.826] (1f18a8c00) INFO   Received message: {"data": {"action": "write", "content": "#!/bin/bash\n\nif ! [ -x \"$(command -v docker-compose)\" ]; then\n  echo 'Error: docker-compose is not installed.' >&2\n  exit 1\nfi\n\ndomains=(your_domain.com)\nrsa_key_size=4096\ndata_path=\"./data/certbot\"\nemail=\"your_email@example.com\" # Adding a valid address is strongly recommended\nstaging=0 # Set to 1 if you're testing your setup to avoid hitting request limits\n\nif [ -d \"$data_path\" ]; then\n  read -p \"Existing data found for $domains. Continue and replace existing certificate? (y/N) \" decision\n  if [ \"$decision\" != \"Y\" ] && [ \"$decision\" != \"y\" ]; then\n    exit\n  fi\nfi\n\nmkdir -p \"$data_path/conf\"\nmkdir -p \"$data_path/www\"\n\ndocker-compose run --rm --entrypoint \"\\\n  mkdir -p /var/www/certbot \\\n  && cp -r /var/www/certbot /data/letsencrypt/www\" certbot\n\ndocker-compose run --rm --entrypoint \"\\\n  openssl dhparam -out /etc/letsencrypt/ssl-dhparams.pem 4096\" certbot\n\ncompose_cmd=\"docker-compose run --rm --entrypoint\"\n\n$compose_cmd \"\\\n  certbot certonly --webroot -w /var/www/certbot \\\n  --email $email \\\n  -d ${domains[*]} \\\n  --rsa-key-size $rsa_key_size \\\n  --agree-tos \\\n  --force-renewal\" certbot\n\ndocker-compose exec nginx nginx -s reload\n", "path": "/Volumes/macOS-extravol/majinbo/serverwitch-api/init-letsencrypt.sh"}, "request_id": "afa3ac0a-e755-48e4-a6c2-5a574dc6e595"}
+[01:10:31.844] (1f18a8c00) INFO   Sending message: {"data":{"size":1148},"error":false,"request_id":"afa3ac0a-e755-48e4-a6c2-5a574dc6e595"}
+[01:10:40.934] (1f18a8c00) INFO   Sending message: keepalive
+[01:10:41.160] (1f18a8c00) INFO   Received message: keepalive
+[01:10:55.133] (1f18a8c00) INFO   Received message: {"data": {"action": "write", "content": "version: '3'\n\nservices:\n  nginx:\n    image: nginx:latest\n    container_name: nginx\n    volumes:\n      - ./nginx/nginx.conf:/etc/nginx/nginx.conf\n      - ./data/certbot/conf:/etc/letsencrypt\n      - ./data/certbot/www:/var/www/certbot\n    ports:\n      - \"80:80\"\n      - \"443:443\"\n    depends_on:\n      - serverwitch-api\n\n  serverwitch-api:\n    build:\n      context: .\n    container_name: serverwitch-api\n    ports:\n      - \"8000:8000\"\n    volumes:\n      - .:/app\n\n  certbot:\n    image: certbot/certbot\n    volumes:\n      - ./data/certbot/conf:/etc/letsencrypt\n      - ./data/certbot/www:/var/www/certbot\n", "path": "/Volumes/macOS-extravol/majinbo/serverwitch-api/docker-compose.yaml"}, "request_id": "8a99649e-6791-4761-8f44-488029509489"}
+[01:10:55.135] (1f18a8c00) INFO   Sending message: {"data":{"size":603},"error":false,"request_id":"8a99649e-6791-4761-8f44-488029509489"}
+[01:11:00.935] (1f18a8c00) INFO   Sending message: keepalive
+[01:11:01.161] (1f18a8c00) INFO   Received message: keepalive
+[01:11:07.753] (1f18a8c00) INFO   Received message: {"data": {"action": "command", "command": "cd /Volumes/macOS-extravol/majinbo/serverwitch-api && chmod +x init-letsencrypt.sh && ./init-letsencrypt.sh"}, "request_id": "25fd0c13-452d-4bee-875b-4228100bfe57"}
+[01:11:08.645] (1f18a8c00) INFO   Sending message: {"data":{"return_code":1,"stdout":"","stderr":"time=\"2024-06-14T01:36:40-03:00\" level=warning msg=\"/Volumes/macOS-extravol/majinbo/serverwitch-api/docker-compose.yaml: `version` is obsolete\"\nCannot connect to the Docker daemon at unix:///Users/eleven/.docker/run/docker.sock. Is the docker daemon running?\ntime=\"2024-06-14T01:36:40-03:00\" level=warning msg=\"/Volumes/macOS-extravol/majinbo/serverwitch-api/docker-compose.yaml: `version` is obsolete\"\nCannot connect to the Docker daemon at unix:///Users/eleven/.docker/run/docker.sock. Is the docker daemon running?\ntime=\"2024-06-14T01:36:40-03:00\" level=warning msg=\"/Volumes/macOS-extravol/majinbo/serverwitch-api/docker-compose.yaml: `version` is obsolete\"\nCannot connect to the Docker daemon at unix:///Users/eleven/.docker/run/docker.sock. Is the docker daemon running?\ntime=\"2024-06-14T01:36:40-03:00\" level=warning msg=\"/Volumes/macOS-extravol/majinbo/serverwitch-api/docker-compose.yaml: `version` is obsolete\"\nCannot connect to the Docker daemon at unix:///Users/eleven/.docker/run/docker.sock. Is the docker daemon running?\n"},"error":false,"request_id":"25fd0c13-452d-4bee-875b-4228100bfe57"}
+[01:11:20.934] (1f18a8c00) INFO   Sending message: keepalive
+[01:11:21.166] (1f18a8c00) INFO   Received message: keepalive
+[01:11:40.938] (1f18a8c00) INFO   Sending message: keepalive
+[01:11:41.167] (1f18a8c00) INFO   Received message: keepalive
+[01:12:00.938] (1f18a8c00) INFO   Sending message: keepalive
+[01:12:01.166] (1f18a8c00) INFO   Received message: keepalive
+[01:12:20.938] (1f18a8c00) INFO   Sending message: keepalive
+[01:12:21.166] (1f18a8c00) INFO   Received message: keepalive
+[01:12:40.939] (1f18a8c00) INFO   Sending message: keepalive
+[01:12:41.167] (1f18a8c00) INFO   Received message: keepalive
+[01:13:00.934] (1f18a8c00) INFO   Sending message: keepalive
+[01:13:01.161] (1f18a8c00) INFO   Received message: keepalive
+[01:13:20.935] (1f18a8c00) INFO   Sending message: keepalive
+[01:13:21.162] (1f18a8c00) INFO   Received message: keepalive
+[01:13:40.935] (1f18a8c00) INFO   Sending message: keepalive
+[01:13:41.162] (1f18a8c00) INFO   Received message: keepalive
+[01:14:00.938] (1f18a8c00) INFO   Sending message: keepalive
+[01:14:01.165] (1f18a8c00) INFO   Received message: keepalive
+[01:14:20.935] (1f18a8c00) INFO   Sending message: keepalive
+[01:14:21.162] (1f18a8c00) INFO   Received message: keepalive
+[01:14:40.935] (1f18a8c00) INFO   Sending message: keepalive
+[01:14:41.162] (1f18a8c00) INFO   Received message: keepalive
+[01:15:00.937] (1f18a8c00) INFO   Sending message: keepalive
+[01:15:01.164] (1f18a8c00) INFO   Received message: keepalive
+[01:15:20.937] (1f18a8c00) INFO   Sending message: keepalive
+[01:15:21.164] (1f18a8c00) INFO   Received message: keepalive
+[01:15:40.934] (1f18a8c00) INFO   Sending message: keepalive
+[01:15:41.163] (1f18a8c00) INFO   Received message: keepalive
+[01:16:00.936] (1f18a8c00) INFO   Sending message: keepalive
+[01:16:01.164] (1f18a8c00) INFO   Received message: keepalive
+[01:16:20.937] (1f18a8c00) INFO   Sending message: keepalive
+[01:16:21.165] (1f18a8c00) INFO   Received message: keepalive
+[01:16:40.934] (1f18a8c00) INFO   Sending message: keepalive
+[01:16:41.164] (1f18a8c00) INFO   Received message: keepalive
+[01:17:00.935] (1f18a8c00) INFO   Sending message: keepalive
+[01:17:01.162] (1f18a8c00) INFO   Received message: keepalive
+[01:17:20.935] (1f18a8c00) INFO   Sending message: keepalive
+[01:17:21.163] (1f18a8c00) INFO   Received message: keepalive
+[01:17:40.937] (1f18a8c00) INFO   Sending message: keepalive
+[01:17:41.164] (1f18a8c00) INFO   Received message: keepalive
+[01:18:00.937] (1f18a8c00) INFO   Sending message: keepalive
+[01:18:01.163] (1f18a8c00) INFO   Received message: keepalive
+[01:18:20.934] (1f18a8c00) INFO   Sending message: keepalive
+[01:18:21.162] (1f18a8c00) INFO   Received message: keepalive
+[01:18:40.941] (1f18a8c00) INFO   Sending message: keepalive
+[01:18:41.169] (1f18a8c00) INFO   Received message: keepalive
+[01:19:00.943] (1f18a8c00) INFO   Sending message: keepalive
+[01:19:01.170] (1f18a8c00) INFO   Received message: keepalive
+[01:19:20.942] (1f18a8c00) INFO   Sending message: keepalive
+[01:19:21.169] (1f18a8c00) INFO   Received message: keepalive
+[01:19:40.935] (1f18a8c00) INFO   Sending message: keepalive
+[01:19:41.162] (1f18a8c00) INFO   Received message: keepalive
+[01:20:00.941] (1f18a8c00) INFO   Sending message: keepalive
+[01:20:01.169] (1f18a8c00) INFO   Received message: keepalive
+[01:20:20.943] (1f18a8c00) INFO   Sending message: keepalive
+[01:20:21.171] (1f18a8c00) INFO   Received message: keepalive
+[01:20:40.941] (1f18a8c00) INFO   Sending message: keepalive
+[01:20:41.168] (1f18a8c00) INFO   Received message: keepalive
+[01:21:00.939] (1f18a8c00) INFO   Sending message: keepalive
+[01:21:01.166] (1f18a8c00) INFO   Received message: keepalive
+[01:21:20.935] (1f18a8c00) INFO   Sending message: keepalive
+[01:21:21.162] (1f18a8c00) INFO   Received message: keepalive
+[01:21:40.943] (1f18a8c00) INFO   Sending message: keepalive
+[01:21:41.170] (1f18a8c00) INFO   Received message: keepalive
+[01:22:00.941] (1f18a8c00) INFO   Sending message: keepalive
+[01:22:01.169] (1f18a8c00) INFO   Received message: keepalive
+[01:22:20.943] (1f18a8c00) INFO   Sending message: keepalive
+[01:22:21.171] (1f18a8c00) INFO   Received message: keepalive
+[01:22:40.943] (1f18a8c00) INFO   Sending message: keepalive
+[01:22:41.170] (1f18a8c00) INFO   Received message: keepalive
+[01:23:00.934] (1f18a8c00) INFO   Sending message: keepalive
+[01:23:01.161] (1f18a8c00) INFO   Received message: keepalive
+[01:23:20.940] (1f18a8c00) INFO   Sending message: keepalive
+[01:23:21.167] (1f18a8c00) INFO   Received message: keepalive
+[01:23:40.943] (1f18a8c00) INFO   Sending message: keepalive
+[01:23:41.170] (1f18a8c00) INFO   Received message: keepalive
+[01:24:00.940] (1f18a8c00) INFO   Sending message: keepalive
+[01:24:01.168] (1f18a8c00) INFO   Received message: keepalive
+[01:24:20.936] (1f18a8c00) INFO   Sending message: keepalive
+[01:24:21.163] (1f18a8c00) INFO   Received message: keepalive
+[01:24:40.935] (1f18a8c00) INFO   Sending message: keepalive
+[01:24:41.163] (1f18a8c00) INFO   Received message: keepalive
+[01:25:00.935] (1f18a8c00) INFO   Sending message: keepalive
+[01:25:01.163] (1f18a8c00) INFO   Received message: keepalive
+[01:25:20.935] (1f18a8c00) INFO   Sending message: keepalive
+[01:25:21.161] (1f18a8c00) INFO   Received message: keepalive
+[01:25:40.935] (1f18a8c00) INFO   Sending message: keepalive
+[01:25:41.163] (1f18a8c00) INFO   Received message: keepalive
+[01:26:00.952] (1f18a8c00) INFO   Sending message: keepalive
+[01:26:01.179] (1f18a8c00) INFO   Received message: keepalive
+[01:26:20.941] (1f18a8c00) INFO   Sending message: keepalive
+[01:26:21.168] (1f18a8c00) INFO   Received message: keepalive
+[01:26:40.943] (1f18a8c00) INFO   Sending message: keepalive
+[01:26:41.170] (1f18a8c00) INFO   Received message: keepalive
+[01:27:00.943] (1f18a8c00) INFO   Sending message: keepalive
+[01:27:01.170] (1f18a8c00) INFO   Received message: keepalive
+[01:27:20.939] (1f18a8c00) INFO   Sending message: keepalive
+[01:27:21.166] (1f18a8c00) INFO   Received message: keepalive
+[01:27:40.939] (1f18a8c00) INFO   Sending message: keepalive
+[01:27:41.166] (1f18a8c00) INFO   Received message: keepalive
+[01:28:00.943] (1f18a8c00) INFO   Sending message: keepalive
+[01:28:01.171] (1f18a8c00) INFO   Received message: keepalive
+[01:28:20.943] (1f18a8c00) INFO   Sending message: keepalive
+[01:28:21.171] (1f18a8c00) INFO   Received message: keepalive
+[01:28:40.943] (1f18a8c00) INFO   Sending message: keepalive
+[01:28:41.171] (1f18a8c00) INFO   Received message: keepalive
+[01:29:00.942] (1f18a8c00) INFO   Sending message: keepalive
+[01:29:01.169] (1f18a8c00) INFO   Received message: keepalive
+[01:29:20.935] (1f18a8c00) INFO   Sending message: keepalive
+[01:29:21.162] (1f18a8c00) INFO   Received message: keepalive
+[01:29:40.943] (1f18a8c00) INFO   Sending message: keepalive
+[01:29:41.170] (1f18a8c00) INFO   Received message: keepalive
+[01:30:00.943] (1f18a8c00) INFO   Sending message: keepalive
+[01:30:01.170] (1f18a8c00) INFO   Received message: keepalive
+[01:30:20.935] (1f18a8c00) INFO   Sending message: keepalive
+[01:30:21.163] (1f18a8c00) INFO   Received message: keepalive
+[01:30:40.943] (1f18a8c00) INFO   Sending message: keepalive
+[01:30:41.171] (1f18a8c00) INFO   Received message: keepalive
+[01:31:00.943] (1f18a8c00) INFO   Sending message: keepalive
+[01:31:01.171] (1f18a8c00) INFO   Received message: keepalive
+[01:31:20.935] (1f18a8c00) INFO   Sending message: keepalive
+[01:31:21.163] (1f18a8c00) INFO   Received message: keepalive
+[01:31:40.934] (1f18a8c00) INFO   Sending message: keepalive
+[01:31:41.167] (1f18a8c00) INFO   Received message: keepalive
+[01:32:00.943] (1f18a8c00) INFO   Sending message: keepalive
+[01:32:01.170] (1f18a8c00) INFO   Received message: keepalive
+[01:32:20.940] (1f18a8c00) INFO   Sending message: keepalive
+[01:32:21.167] (1f18a8c00) INFO   Received message: keepalive
+[01:32:40.941] (1f18a8c00) INFO   Sending message: keepalive
+[01:32:41.168] (1f18a8c00) INFO   Received message: keepalive
+[01:33:00.935] (1f18a8c00) INFO   Sending message: keepalive
+[01:33:01.162] (1f18a8c00) INFO   Received message: keepalive
+[01:33:20.935] (1f18a8c00) INFO   Sending message: keepalive
+[01:33:21.161] (1f18a8c00) INFO   Received message: keepalive
+[01:33:40.935] (1f18a8c00) INFO   Sending message: keepalive
+[01:33:41.163] (1f18a8c00) INFO   Received message: keepalive
+[01:34:00.935] (1f18a8c00) INFO   Sending message: keepalive
+[01:34:01.163] (1f18a8c00) INFO   Received message: keepalive
+[01:34:20.936] (1f18a8c00) INFO   Sending message: keepalive
+[01:34:21.164] (1f18a8c00) INFO   Received message: keepalive
+[01:34:40.935] (1f18a8c00) INFO   Sending message: keepalive
+[01:34:41.162] (1f18a8c00) INFO   Received message: keepalive
+[01:35:00.942] (1f18a8c00) INFO   Sending message: keepalive
+[01:35:01.170] (1f18a8c00) INFO   Received message: keepalive
+[01:35:20.942] (1f18a8c00) INFO   Sending message: keepalive
+[01:35:21.171] (1f18a8c00) INFO   Received message: keepalive
+[01:35:40.936] (1f18a8c00) INFO   Sending message: keepalive
+[01:35:41.163] (1f18a8c00) INFO   Received message: keepalive
+[01:36:00.941] (1f18a8c00) INFO   Sending message: keepalive
+[01:36:01.169] (1f18a8c00) INFO   Received message: keepalive
+[01:36:20.936] (1f18a8c00) INFO   Sending message: keepalive
+[01:36:21.162] (1f18a8c00) INFO   Received message: keepalive
+[01:36:40.943] (1f18a8c00) INFO   Sending message: keepalive
+[01:36:41.170] (1f18a8c00) INFO   Received message: keepalive
+[01:37:00.943] (1f18a8c00) INFO   Sending message: keepalive
+[01:37:01.170] (1f18a8c00) INFO   Received message: keepalive
+[01:37:20.936] (1f18a8c00) INFO   Sending message: keepalive
+[01:37:21.163] (1f18a8c00) INFO   Received message: keepalive
+[01:37:40.934] (1f18a8c00) INFO   Sending message: keepalive
+[01:37:41.161] (1f18a8c00) INFO   Received message: keepalive
+[01:38:00.935] (1f18a8c00) INFO   Sending message: keepalive
+[01:38:01.162] (1f18a8c00) INFO   Received message: keepalive
+[01:38:20.935] (1f18a8c00) INFO   Sending message: keepalive
+[01:38:21.163] (1f18a8c00) INFO   Received message: keepalive
+[01:38:40.938] (1f18a8c00) INFO   Sending message: keepalive
+[01:38:41.169] (1f18a8c00) INFO   Received message: keepalive
+[01:39:00.935] (1f18a8c00) INFO   Sending message: keepalive
+[01:39:01.163] (1f18a8c00) INFO   Received message: keepalive
+[01:39:20.941] (1f18a8c00) INFO   Sending message: keepalive
+[01:39:21.168] (1f18a8c00) INFO   Received message: keepalive
+[01:39:40.939] (1f18a8c00) INFO   Sending message: keepalive
+[01:39:41.166] (1f18a8c00) INFO   Received message: keepalive
+[01:40:00.935] (1f18a8c00) INFO   Sending message: keepalive
+[01:40:01.162] (1f18a8c00) INFO   Received message: keepalive
+[01:40:20.938] (1f18a8c00) INFO   Sending message: keepalive
+[01:40:21.166] (1f18a8c00) INFO   Received message: keepalive
+[01:40:40.938] (1f18a8c00) INFO   Sending message: keepalive
+[01:40:41.166] (1f18a8c00) INFO   Received message: keepalive
+[01:41:00.940] (1f18a8c00) INFO   Sending message: keepalive
+[01:41:01.167] (1f18a8c00) INFO   Received message: keepalive
+[01:41:20.940] (1f18a8c00) INFO   Sending message: keepalive
+[01:41:21.166] (1f18a8c00) INFO   Received message: keepalive
+[01:41:40.935] (1f18a8c00) INFO   Sending message: keepalive
+[01:41:41.161] (1f18a8c00) INFO   Received message: keepalive
+[01:42:00.935] (1f18a8c00) INFO   Sending message: keepalive
+[01:42:01.162] (1f18a8c00) INFO   Received message: keepalive
+[01:42:20.942] (1f18a8c00) INFO   Sending message: keepalive
+[01:42:21.169] (1f18a8c00) INFO   Received message: keepalive
+[01:42:40.942] (1f18a8c00) INFO   Sending message: keepalive
+[01:42:41.169] (1f18a8c00) INFO   Received message: keepalive
+[01:43:00.936] (1f18a8c00) INFO   Sending message: keepalive
+[01:43:01.162] (1f18a8c00) INFO   Received message: keepalive
+[01:43:20.943] (1f18a8c00) INFO   Sending message: keepalive
+[01:43:21.169] (1f18a8c00) INFO   Received message: keepalive
+[01:43:40.943] (1f18a8c00) INFO   Sending message: keepalive
+[01:43:41.170] (1f18a8c00) INFO   Received message: keepalive
+[01:44:00.935] (1f18a8c00) INFO   Sending message: keepalive
+[01:44:01.161] (1f18a8c00) INFO   Received message: keepalive
+[01:44:20.946] (1f18a8c00) INFO   Sending message: keepalive
+[01:44:21.176] (1f18a8c00) INFO   Received message: keepalive
+[01:44:40.937] (1f18a8c00) INFO   Sending message: keepalive
+[01:44:41.165] (1f18a8c00) INFO   Received message: keepalive
+[01:45:00.943] (1f18a8c00) INFO   Sending message: keepalive
+[01:45:01.171] (1f18a8c00) INFO   Received message: keepalive
+[01:45:20.935] (1f18a8c00) INFO   Sending message: keepalive
+[01:45:21.162] (1f18a8c00) INFO   Received message: keepalive
+[01:45:40.939] (1f18a8c00) INFO   Sending message: keepalive
+[01:45:41.166] (1f18a8c00) INFO   Received message: keepalive
+[01:46:00.939] (1f18a8c00) INFO   Sending message: keepalive
+[01:46:01.166] (1f18a8c00) INFO   Received message: keepalive
+[01:46:20.935] (1f18a8c00) INFO   Sending message: keepalive
+[01:46:21.165] (1f18a8c00) INFO   Received message: keepalive
+[01:46:40.934] (1f18a8c00) INFO   Sending message: keepalive
+[01:46:41.162] (1f18a8c00) INFO   Received message: keepalive
+[01:47:00.934] (1f18a8c00) INFO   Sending message: keepalive
+[01:47:01.161] (1f18a8c00) INFO   Received message: keepalive
+[01:47:20.936] (1f18a8c00) INFO   Sending message: keepalive
+[01:47:21.163] (1f18a8c00) INFO   Received message: keepalive
+[01:47:40.936] (1f18a8c00) INFO   Sending message: keepalive
+[01:47:41.167] (1f18a8c00) INFO   Received message: keepalive
+[01:48:00.935] (1f18a8c00) INFO   Sending message: keepalive
+[01:48:01.162] (1f18a8c00) INFO   Received message: keepalive
+[01:48:20.936] (1f18a8c00) INFO   Sending message: keepalive
+[01:48:21.163] (1f18a8c00) INFO   Received message: keepalive
+[01:48:40.935] (1f18a8c00) INFO   Sending message: keepalive
+[01:48:41.162] (1f18a8c00) INFO   Received message: keepalive
+[01:49:00.935] (1f18a8c00) INFO   Sending message: keepalive
+[01:49:01.161] (1f18a8c00) INFO   Received message: keepalive
+[01:49:20.937] (1f18a8c00) INFO   Sending message: keepalive
+[01:49:21.164] (1f18a8c00) INFO   Received message: keepalive
+[01:49:40.939] (1f18a8c00) INFO   Sending message: keepalive
+[01:49:41.166] (1f18a8c00) INFO   Received message: keepalive
+[01:50:00.939] (1f18a8c00) INFO   Sending message: keepalive
+[01:50:01.164] (1f18a8c00) INFO   Received message: keepalive
+[01:50:20.935] (1f18a8c00) INFO   Sending message: keepalive
+[01:50:21.162] (1f18a8c00) INFO   Received message: keepalive
+[01:50:40.939] (1f18a8c00) INFO   Sending message: keepalive
+[01:50:41.166] (1f18a8c00) INFO   Received message: keepalive
+[01:51:00.939] (1f18a8c00) INFO   Sending message: keepalive
+[01:51:01.167] (1f18a8c00) INFO   Received message: keepalive
+[01:51:20.937] (1f18a8c00) INFO   Sending message: keepalive
+[01:51:21.164] (1f18a8c00) INFO   Received message: keepalive
+[01:51:40.940] (1f18a8c00) INFO   Sending message: keepalive
+[01:51:41.168] (1f18a8c00) INFO   Received message: keepalive
+[01:52:00.941] (1f18a8c00) INFO   Sending message: keepalive
+[01:52:01.169] (1f18a8c00) INFO   Received message: keepalive
+[01:52:20.942] (1f18a8c00) INFO   Sending message: keepalive
+[01:52:21.169] (1f18a8c00) INFO   Received message: keepalive
+[01:52:40.940] (1f18a8c00) INFO   Sending message: keepalive
+[01:52:41.168] (1f18a8c00) INFO   Received message: keepalive
+[01:53:00.941] (1f18a8c00) INFO   Sending message: keepalive
+[01:53:01.168] (1f18a8c00) INFO   Received message: keepalive
+[01:53:20.941] (1f18a8c00) INFO   Sending message: keepalive
+[01:53:21.169] (1f18a8c00) INFO   Received message: keepalive
+[01:53:40.942] (1f18a8c00) INFO   Sending message: keepalive
+[01:53:41.169] (1f18a8c00) INFO   Received message: keepalive
+[01:54:00.939] (1f18a8c00) INFO   Sending message: keepalive
+[01:54:01.167] (1f18a8c00) INFO   Received message: keepalive
+[01:54:20.936] (1f18a8c00) INFO   Sending message: keepalive
+[01:54:21.163] (1f18a8c00) INFO   Received message: keepalive
+[01:54:40.941] (1f18a8c00) INFO   Sending message: keepalive
+[01:54:41.169] (1f18a8c00) INFO   Received message: keepalive
+[01:55:00.936] (1f18a8c00) INFO   Sending message: keepalive
+[01:55:01.164] (1f18a8c00) INFO   Received message: keepalive
+[01:55:20.935] (1f18a8c00) INFO   Sending message: keepalive
+[01:55:21.162] (1f18a8c00) INFO   Received message: keepalive
+[01:55:40.936] (1f18a8c00) INFO   Sending message: keepalive
+[01:55:41.164] (1f18a8c00) INFO   Received message: keepalive
+[01:56:00.935] (1f18a8c00) INFO   Sending message: keepalive
+[01:56:01.162] (1f18a8c00) INFO   Received message: keepalive
+[01:56:20.940] (1f18a8c00) INFO   Sending message: keepalive
+[01:56:21.166] (1f18a8c00) INFO   Received message: keepalive
+[01:56:40.935] (1f18a8c00) INFO   Sending message: keepalive
+[01:56:41.165] (1f18a8c00) INFO   Received message: keepalive
+[01:57:00.936] (1f18a8c00) INFO   Sending message: keepalive
+[01:57:01.177] (1f18a8c00) INFO   Received message: keepalive
+[01:57:20.942] (1f18a8c00) INFO   Sending message: keepalive
+[01:57:21.169] (1f18a8c00) INFO   Received message: keepalive
+[01:57:40.935] (1f18a8c00) INFO   Sending message: keepalive
+[01:57:41.162] (1f18a8c00) INFO   Received message: keepalive
+[01:58:00.935] (1f18a8c00) INFO   Sending message: keepalive
+[01:58:01.162] (1f18a8c00) INFO   Received message: keepalive
+[01:58:20.941] (1f18a8c00) INFO   Sending message: keepalive
+[01:58:21.169] (1f18a8c00) INFO   Received message: keepalive
+[01:58:40.939] (1f18a8c00) INFO   Sending message: keepalive
+[01:58:41.166] (1f18a8c00) INFO   Received message: keepalive
+[01:59:00.937] (1f18a8c00) INFO   Sending message: keepalive
+[01:59:01.165] (1f18a8c00) INFO   Received message: keepalive
+[01:59:20.935] (1f18a8c00) INFO   Sending message: keepalive
+[01:59:21.163] (1f18a8c00) INFO   Received message: keepalive
+[01:59:40.941] (1f18a8c00) INFO   Sending message: keepalive
+[01:59:41.169] (1f18a8c00) INFO   Received message: keepalive
+[02:00:00.942] (1f18a8c00) INFO   Sending message: keepalive
+[02:00:01.171] (1f18a8c00) INFO   Received message: keepalive
+[02:00:20.935] (1f18a8c00) INFO   Sending message: keepalive
+[02:00:21.162] (1f18a8c00) INFO   Received message: keepalive
+[02:00:40.935] (1f18a8c00) INFO   Sending message: keepalive
+[02:00:41.161] (1f18a8c00) INFO   Received message: keepalive
+[02:01:00.937] (1f18a8c00) INFO   Sending message: keepalive
+[02:01:01.165] (1f18a8c00) INFO   Received message: keepalive
+[02:01:20.934] (1f18a8c00) INFO   Sending message: keepalive
+[02:01:21.162] (1f18a8c00) INFO   Received message: keepalive
+[02:01:40.935] (1f18a8c00) INFO   Sending message: keepalive
+[02:01:41.164] (1f18a8c00) INFO   Received message: keepalive
+[02:02:00.942] (1f18a8c00) INFO   Sending message: keepalive
+[02:02:01.169] (1f18a8c00) INFO   Received message: keepalive

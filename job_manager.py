@@ -2,9 +2,11 @@ import os
 import csv
 import subprocess
 from time import sleep
+import json
 
 QUEUE_FILE = '/Volumes/macOS-extravol/majinbo/job_queue.txt'
 CONTEXT_FILE = '/Volumes/macOS-extravol/majinbo/context.txt'
+STATE_FILE = '/Volumes/macOS-extravol/majinbo/job_state.json'
 
 # Function to add a job to the queue with priority
 def add_job(command, priority=1):
@@ -40,6 +42,7 @@ def check_job_status(job_id):
 
 # Function to execute jobs in the queue based on priority
 def execute_jobs():
+    restore_state()
     while True:
         stop_existing_jobs()
         with open(QUEUE_FILE, 'r') as f:
@@ -59,10 +62,17 @@ def execute_jobs():
                 if is_job_running(command):
                     continue
                 update_job_status(job_id, 'running')
-                subprocess.Popen(f'screen -dmS job_{job_id} bash -c "{command}" && echo {job_id} completed', shell=True)
-                sleep(2)
-                update_job_status(job_id, 'completed')
-                update_context(f'Job {job_id} with command "{command}" has been completed')
+                save_state(job_id, 'running')
+                try:
+                    subprocess.Popen(f'screen -dmS job_{job_id} bash -c "{command}" && echo {job_id} completed', shell=True)
+                    sleep(2)
+                    update_job_status(job_id, 'completed')
+                    save_state(job_id, 'completed')
+                    update_context(f'Job {job_id} with command "{command}" has been completed')
+                except Exception as e:
+                    update_context(f'Error executing job {job_id} with command "{command}": {e}')
+                    update_job_status(job_id, 'failed')
+                    save_state(job_id, 'failed')
         sleep(2)
 
 # Function to check if a job with the same command is already running
@@ -91,6 +101,32 @@ def update_job_status(job_id, status):
 def update_context(message):
     with open(CONTEXT_FILE, 'a') as f:
         f.write(f'CONTEXT: {message}\n')
+
+# Function to save the state of jobs
+def save_state(job_id, status):
+    state = {}
+    if os.path.exists(STATE_FILE):
+        with open(STATE_FILE, 'r') as f:
+            state = json.load(f)
+    state[job_id] = status
+    with open(STATE_FILE, 'w') as f:
+        json.dump(state, f)
+
+# Function to restore the state of jobs
+def restore_state():
+    if not os.path.exists(STATE_FILE):
+        return
+    with open(STATE_FILE, 'r') as f:
+        state = json.load(f)
+    with open(QUEUE_FILE, 'r') as f:
+        reader = csv.reader(f)
+        rows = list(reader)
+    with open(QUEUE_FILE, 'w') as f:
+        writer = csv.writer(f)
+        for row in rows:
+            if len(row) == 4 and row[0] in state:  # Ensure row has the expected length
+                row[2] = state[row[0]]
+            writer.writerow(row)
 
 if __name__ == '__main__':
     import sys
